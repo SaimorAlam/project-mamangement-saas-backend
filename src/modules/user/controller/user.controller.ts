@@ -64,10 +64,7 @@ export class UserController {
   @Get('managers')
   @Roles(Role.CLIENT)
   async findAllManagers(@Query() query: PaginationDto) {
-    const result = await this.managerService.findAll({
-      page: query.page ?? 1,
-      limit: query.limit ?? 10,
-    });
+    const result = await this.managerService.findAll();
     return { message: 'Managers fetched successfully', data: result };
   }
 
