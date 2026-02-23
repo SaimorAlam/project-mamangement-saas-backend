@@ -42,7 +42,7 @@ export class ProgramController {
   }
 
 
-  @Get()
+  @Get('all')
   async findAll(@Query() query: GetAllProgramsDto) {
     try {
       const data = await this.programService.findAll(query);
