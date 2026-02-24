@@ -48,24 +48,25 @@ export class ProjectController {
 
 // project.controller.ts
 
+// project.controller.ts
+
 @Get('all')
-@ApiOperation({ summary: 'Get projects assigned to me' })
+@ApiOperation({ summary: 'Get all projects assigned to the user' })
 @ApiResponse({ status: 200, description: 'Projects retrieved successfully' })
 async findAll(
   @Query() query: FindAllProjectsDto,
   @Req() req: RequestWithUser
 ) {
+  const userId = req.user.userId;
+  const userRole = req.user.role;
 
-  const authUserId =req.user.userId; 
-  
-  const result = await this.projectService.findAllFull(query, authUserId);
+  const allProjects = await this.projectService.findAllFull(query, userId, userRole);
   
   return {
     message: 'Projects retrieved successfully',
-    ...result,
+    projects: allProjects,
   };
 }
-
   // Search projects by name
   @Get('search')
   @ApiOperation({ summary: 'Search projects by name' })

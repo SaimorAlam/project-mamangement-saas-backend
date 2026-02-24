@@ -30,16 +30,18 @@ model Submitted {
 }
 
 model SubmittedElement {
-  id          String    @id @default(uuid())
-  
-  chart       ChartTable @relation(fields: [chartId], references: [id])
-  chartId     String
-  
+  id String @id @default(uuid())
+
+  chart   ChartTable @relation(fields: [chartId], references: [id])
+  chartId String
+
   xAxis       Json?
   yAxis       Json?
   zAxis       Json?
   submitted   Submitted @relation(fields: [submittedId], references: [id], onDelete: Cascade)
   submittedId String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 // {

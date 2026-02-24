@@ -518,7 +518,7 @@ export class ProjectService {
       return newProject;
     });
 
-    this.sendCreationNotifications(project).catch(err =>
+    this.sendProjectNotifications(project).catch(err =>
       this.logger.error(`Notification failed: ${err.message}`)
     );
 
@@ -526,46 +526,28 @@ export class ProjectService {
   }
 
 
-  private async sendCreationNotifications(project: any) {
-    const receiverIds = [
-      project.manager?.user?.id,
-      ...project.projectEmployees.map(e => e.employee?.user?.id)
-    ].filter(Boolean);
-
-    const uniqueReceivers = [...new Set(receiverIds)] as string[];
-    const savedNotification = await this.notificationService.create({
-      receiverIds: uniqueReceivers,
-      context: `New project "${project.name}" assigned.`,
-      type: NotificationType.NEW_EMPLOYEE_ASSIGNED,
-    }, project.manager.user.id);
-
-    await this.gateway.sendToUsers(uniqueReceivers, 'notification_received', {
-      id: savedNotification.id,
-      message: `You have been assigned to project: ${project.name}`,
-      metadata: { projectId: project.id },
-      createdAt: new Date()
-    });
-  }
-
-  private async sendProjectNotifications(project: any) {
-    const managerUserId = project.manager?.user?.id;
-    if (!managerUserId) return;
-
-    const employeeUserIds = project.projectEmployees
-      ?.map(pe => pe.employee?.user?.id)
-      .filter(Boolean) || [];
-
-    const uniqueReceivers = [...new Set([managerUserId, ...employeeUserIds])];
-
+private async sendProjectNotifications(project: any) {
+  const managerUserId = project.manager?.user?.id;
+  const employeeUserIds = project.projectEmployees
+    ?.map(pe => pe.employee?.user?.id)
+    .filter(Boolean) || [];
+    
+  const uniqueReceivers = [...new Set([...employeeUserIds, managerUserId])].filter(Boolean);
+  if (uniqueReceivers.length === 0) return;
+  try {
     await this.notificationService.create(
       {
         receiverIds: uniqueReceivers,
-        context: `A new project "${project.name}" has been created and assigned.`,
-        type: NotificationType.NEW_EMPLOYEE_ASSIGNED,
+        projectId: project.id,
+        context: `New project "{project.name} has been created and assigned.`,
+        type: NotificationType.PROJECT_CREATED,
       },
-      managerUserId,
+      managerUserId || 'SYSTEM',
     );
+  } catch (error) {
+    this.logger.error(`Notification dispatch failed for project ${project.id}: ${error.message}`);
   }
+}
 
   async searchByName(query: SearchProjectByNameDto) {
     const { name, page = 1, limit = 10, employeeId } = query;
@@ -701,30 +683,37 @@ export class ProjectService {
 
 // project.service.ts
 
-async findAllFull(query: FindAllProjectsDto, authUserId: string) {
+// project.service.ts
+
+async findAllFull(query: FindAllProjectsDto, authUserId: string, userRole: string) {
   const where: Prisma.ProjectWhereInput = {
     ...buildProjectFilter(query),
     isDeleted: false,
-    OR: [
-      {
-        manager: { userId: authUserId },
-      },
-      {
-        projectEmployees: {
-          some: {
-            employee: { userId: authUserId },
-          },
-        },
-      },
-      {
-        projectViewers: {
-          some: {
-            viewer: { userId: authUserId },
-          },
-        },
-      },
-    ],
   };
+
+  if (userRole !== 'CLIENT') {
+    where.OR = [
+      { 
+        manager: { 
+          userId: authUserId 
+        } 
+      },
+      { 
+        projectEmployees: { 
+          some: { 
+            employee: { userId: authUserId } 
+          } 
+        } 
+      },
+      { 
+        projectViewers: { 
+          some: { 
+            viewer: { userId: authUserId } 
+          } 
+        } 
+      }
+    ];
+  }
 
   const orderBy: Prisma.ProjectOrderByWithRelationInput = query.sortBy
     ? { [query.sortBy]: query.sortOrder ?? 'desc' }
@@ -739,7 +728,7 @@ async findAllFull(query: FindAllProjectsDto, authUserId: string) {
       where,
       skip,
       take: limit,
-      include: this.fullProjectInclude, // Ensure this includes manager and employees
+      include: this.fullProjectInclude,
       orderBy,
     }),
     this.prisma.project.count({ where }),
@@ -753,8 +742,6 @@ async findAllFull(query: FindAllProjectsDto, authUserId: string) {
     totalPages: Math.ceil(total / limit),
   };
 }
-
-
 
 
 
