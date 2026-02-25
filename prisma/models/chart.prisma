@@ -48,6 +48,9 @@ model ChartTable {
 
   //history
   history ChartHistory[]
+
+  // for submitted 
+  submittedElements SubmittedElement[]
 }
 
 model ChartHistory {

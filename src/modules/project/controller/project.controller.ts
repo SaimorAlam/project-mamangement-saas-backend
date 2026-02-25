@@ -27,7 +27,7 @@ import { RequestWithUser } from 'src/types/RequestWithUser';
 @Controller('project')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ProjectController {
-  constructor(private readonly projectService: ProjectService) {}
+  constructor(private readonly projectService: ProjectService) { }
 
   //  Create a new project
   @Post()
@@ -44,17 +44,29 @@ export class ProjectController {
   }
 
   // Get all projects (with pagination/filter)
-  @Get()
-  @ApiOperation({ summary: 'Get all projects' })
-  @ApiResponse({ status: 200, description: 'Projects retrieved successfully' })
-  async findAll(@Query() query: FindAllProjectsDto) {
-    const allProjects = await this.projectService.findAllFull(query);
-    return {
-      message: 'Projects retrieved successfully',
-      projects: allProjects,
-    };
-  }
+  // project.controller.ts
 
+// project.controller.ts
+
+// project.controller.ts
+
+@Get('all')
+@ApiOperation({ summary: 'Get all projects assigned to the user' })
+@ApiResponse({ status: 200, description: 'Projects retrieved successfully' })
+async findAll(
+  @Query() query: FindAllProjectsDto,
+  @Req() req: RequestWithUser
+) {
+  const userId = req.user.userId;
+  const userRole = req.user.role;
+
+  const allProjects = await this.projectService.findAllFull(query, userId, userRole);
+  
+  return {
+    message: 'Projects retrieved successfully',
+    projects: allProjects,
+  };
+}
   // Search projects by name
   @Get('search')
   @ApiOperation({ summary: 'Search projects by name' })

@@ -518,7 +518,7 @@ export class ProjectService {
       return newProject;
     });
 
-    this.sendCreationNotifications(project).catch(err =>
+    this.sendProjectNotifications(project).catch(err =>
       this.logger.error(`Notification failed: ${err.message}`)
     );
 
@@ -526,46 +526,28 @@ export class ProjectService {
   }
 
 
-  private async sendCreationNotifications(project: any) {
-    const receiverIds = [
-      project.manager?.user?.id,
-      ...project.projectEmployees.map(e => e.employee?.user?.id)
-    ].filter(Boolean);
-
-    const uniqueReceivers = [...new Set(receiverIds)] as string[];
-    const savedNotification = await this.notificationService.create({
-      receiverIds: uniqueReceivers,
-      context: `New project "${project.name}" assigned.`,
-      type: NotificationType.NEW_EMPLOYEE_ASSIGNED,
-    }, project.manager.user.id);
-
-    await this.gateway.sendToUsers(uniqueReceivers, 'notification_received', {
-      id: savedNotification.id,
-      message: `You have been assigned to project: ${project.name}`,
-      metadata: { projectId: project.id },
-      createdAt: new Date()
-    });
-  }
-
-  private async sendProjectNotifications(project: any) {
-    const managerUserId = project.manager?.user?.id;
-    if (!managerUserId) return;
-
-    const employeeUserIds = project.projectEmployees
-      ?.map(pe => pe.employee?.user?.id)
-      .filter(Boolean) || [];
-
-    const uniqueReceivers = [...new Set([managerUserId, ...employeeUserIds])];
-
+private async sendProjectNotifications(project: any) {
+  const managerUserId = project.manager?.user?.id;
+  const employeeUserIds = project.projectEmployees
+    ?.map(pe => pe.employee?.user?.id)
+    .filter(Boolean) || [];
+    
+  const uniqueReceivers = [...new Set([...employeeUserIds, managerUserId])].filter(Boolean);
+  if (uniqueReceivers.length === 0) return;
+  try {
     await this.notificationService.create(
       {
         receiverIds: uniqueReceivers,
-        context: `A new project "${project.name}" has been created and assigned.`,
-        type: NotificationType.NEW_EMPLOYEE_ASSIGNED,
+        projectId: project.id,
+        context: `New project "{project.name} has been created and assigned.`,
+        type: NotificationType.PROJECT_CREATED,
       },
-      managerUserId,
+      managerUserId || 'SYSTEM',
     );
+  } catch (error) {
+    this.logger.error(`Notification dispatch failed for project ${project.id}: ${error.message}`);
   }
+}
 
   async searchByName(query: SearchProjectByNameDto) {
     const { name, page = 1, limit = 10, employeeId } = query;
@@ -666,41 +648,100 @@ export class ProjectService {
     rootCharts: true,
   };
 
-  async findAllFull(query: FindAllProjectsDto) {
-    const where: Prisma.ProjectWhereInput = {
-      ...buildProjectFilter(query),
-      isDeleted: false,
-    };
+  // async findAllFull(query: FindAllProjectsDto) {
+  //   const where: Prisma.ProjectWhereInput = {
+  //     ...buildProjectFilter(query),
+  //     isDeleted: false,
+  //   };
 
-    const orderBy: Prisma.ProjectOrderByWithRelationInput = query.sortBy
-      ? { [query.sortBy]: query.sortOrder ?? Prisma.SortOrder.desc }
-      : { createdAt: Prisma.SortOrder.desc };
+  //   const orderBy: Prisma.ProjectOrderByWithRelationInput = query.sortBy
+  //     ? { [query.sortBy]: query.sortOrder ?? Prisma.SortOrder.desc }
+  //     : { createdAt: Prisma.SortOrder.desc };
 
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 12;
-    const skip = (page - 1) * limit;
+  //   const page = query.page ?? 1;
+  //   const limit = query.limit ?? 12;
+  //   const skip = (page - 1) * limit;
 
-    const [projects, total] = await this.prisma.$transaction([
-      this.prisma.project.findMany({
-        where,
-        skip,
-        take: limit,
-        include: this.fullProjectInclude,
-        orderBy,
-      }),
-      this.prisma.project.count({ where }),
-    ]);
+  //   const [projects, total] = await this.prisma.$transaction([
+  //     this.prisma.project.findMany({
+  //       where,
+  //       skip,
+  //       take: limit,
+  //       include: this.fullProjectInclude,
+  //       orderBy,
+  //     }),
+  //     this.prisma.project.count({ where }),
+  //   ]);
 
-    return {
-      data: projects,
-      total,
-      page,
-      limit,
-    };
+  //   return {
+  //     data: projects,
+  //     total,
+  //     page,
+  //     limit,
+  //   };
+  // }
+
+// project.service.ts
+
+// project.service.ts
+
+async findAllFull(query: FindAllProjectsDto, authUserId: string, userRole: string) {
+  const where: Prisma.ProjectWhereInput = {
+    ...buildProjectFilter(query),
+    isDeleted: false,
+  };
+
+  if (userRole !== 'CLIENT') {
+    where.OR = [
+      { 
+        manager: { 
+          userId: authUserId 
+        } 
+      },
+      { 
+        projectEmployees: { 
+          some: { 
+            employee: { userId: authUserId } 
+          } 
+        } 
+      },
+      { 
+        projectViewers: { 
+          some: { 
+            viewer: { userId: authUserId } 
+          } 
+        } 
+      }
+    ];
   }
 
+  const orderBy: Prisma.ProjectOrderByWithRelationInput = query.sortBy
+    ? { [query.sortBy]: query.sortOrder ?? 'desc' }
+    : { createdAt: 'desc' };
 
+  const page = Math.max(query.page ?? 1, 1);
+  const limit = Math.max(query.limit ?? 12, 1);
+  const skip = (page - 1) * limit;
 
+  const [projects, total] = await this.prisma.$transaction([
+    this.prisma.project.findMany({
+      where,
+      skip,
+      take: limit,
+      include: this.fullProjectInclude,
+      orderBy,
+    }),
+    this.prisma.project.count({ where }),
+  ]);
+
+  return {
+    data: projects,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
 
 
 
