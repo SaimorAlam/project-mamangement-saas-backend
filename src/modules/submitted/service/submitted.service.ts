@@ -19,6 +19,7 @@ import { Prisma, Submitted, SubmittedStatus } from '../../../../generated/prisma
 import { NotificationService } from 'src/modules/notification/service/notification.service';
 import { NotificationType } from 'src/modules/notification/dto/create-notification.dto';
 import { length } from 'class-validator';
+import { ChartMainService } from 'src/modules/chart/service/chart.main.service';
 
 
 @Injectable()
@@ -26,6 +27,7 @@ export class SubmittedService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly ChartMainService: ChartMainService
   ) { }
 
   async create(createSubmittedDto: CreateSubmittedDto, employeeId: string) {
@@ -80,9 +82,10 @@ export class SubmittedService {
             elements: {
               create: elements.map((el) => ({
                 chartId: el.chartId,
-                xAxis: el.xAxis ?? {},
-                yAxis: el.yAxis ?? {},
-                zAxis: el.zAxis ?? {},
+                xAxis: JSON.parse(el.xAxis),
+                yAxis: el.yAxis ? JSON.parse(el.yAxis) : Prisma.JsonNull,
+                zAxis: el.zAxis ? JSON.parse(el.zAxis) : Prisma.JsonNull,
+
               })),
             },
           },
@@ -99,25 +102,25 @@ export class SubmittedService {
   }
 
 
-private async handleNotifications(project: any, senderId: string) {
-  const managerUserId = project.manager?.user?.id || project.manager?.userId; 
-  
-  if (!managerUserId) return;
-  const permission = await this.prisma.notificationPermissionManager.findUnique({
-    where: { userId: managerUserId },
-  });
-  if (permission?.submittedProject) {
-    await this.notificationService.create(
-      {
-        receiverIds: [managerUserId],
-        projectId: project.id,
-        context: `New submission for project: ${project.name}. Approval required to update charts.`,
-        type: NotificationType.SHEET_UPDATE_REQUEST,
-      }, 
-      senderId
-    );
+  private async handleNotifications(project: any, senderId: string) {
+    const managerUserId = project.manager?.user?.id || project.manager?.userId;
+
+    if (!managerUserId) return;
+    const permission = await this.prisma.notificationPermissionManager.findUnique({
+      where: { userId: managerUserId },
+    });
+    if (permission?.submittedProject) {
+      await this.notificationService.create(
+        {
+          receiverIds: [managerUserId],
+          projectId: project.id,
+          context: `New submission for project: ${project.name}. Approval required to update charts.`,
+          type: NotificationType.SHEET_UPDATE_REQUEST,
+        },
+        senderId
+      );
+    }
   }
-}
 
   // async findAll(
   //   query: GetAllSubmissionsDto,
@@ -285,102 +288,114 @@ private async handleNotifications(project: any, senderId: string) {
     return submitted;
   }
 
-async updateStatus(
-  id: string,
-  updateSubmittedStatusDto: UpdateSubmittedStatusDto,
-  authUserId: string,
-) {
-  const { status } = updateSubmittedStatusDto;
+  async updateStatus(
+    id: string,
+    updateSubmittedStatusDto: UpdateSubmittedStatusDto,
+    authUserId: string,
+  ) {
+    const { status } = updateSubmittedStatusDto;
 
-  const result = await this.prisma.$transaction(async (tx) => {
-    const submitted = await tx.submitted.findFirst({
-      where: {
-        id,
-        project: {
-          OR: [
-            { manager: { userId: authUserId } },
-            { program: { managerId: authUserId } },
-            { program: { manager: { userId: authUserId } } }
-          ]
-        },
-      },
-      include: {
-        elements: true,
-        employee: { select: { id: true, userId: true } },
-        project: { select: { id: true, name: true } },
-      },
-    });
-
-    if (!submitted) {
-      throw new UnauthorizedException(`Access denied. You are not authorized.`);
-    }
-
-    if (!submitted.employee) {
-      throw new BadRequestException('Submission has no employee assigned.');
-    }
-
-    const { project, employee, elements } = submitted;
-
-    const updatedSubmission = await tx.submitted.update({
-      where: { id },
-      data: { status },
-    });
-
-    if (status === SubmittedStatus.APPROVED) {
-      for (const element of elements) {
-        await tx.chartTable.update({
-          where: { id: element.chartId },
-          data: {
-            xAxis: (element.xAxis as Prisma.InputJsonValue) ?? Prisma.JsonNull,
-            yAxis: (element.yAxis as Prisma.InputJsonValue) ?? Prisma.JsonNull,
-            zAxis: (element.zAxis as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+    const result = await this.prisma.$transaction(async (tx) => {
+      const submitted = await tx.submitted.findFirst({
+        where: {
+          id,
+          project: {
+            OR: [
+              { manager: { userId: authUserId } },
+              { program: { managerId: authUserId } },
+              { program: { manager: { userId: authUserId } } }
+            ]
           },
+        },
+        include: {
+          elements: true,
+          employee: { select: { id: true, userId: true } },
+          project: { select: { id: true, name: true } },
+        },
+      });
+
+      if (!submitted) {
+        throw new UnauthorizedException(`Access denied. You are not authorized.`);
+      }
+
+      if (!submitted.employee) {
+        throw new BadRequestException('Submission has no employee assigned.');
+      }
+
+      const { project, employee, elements } = submitted;
+
+      const updatedSubmission = await tx.submitted.update({
+        where: { id },
+        data: { status },
+      });
+
+      if (status === SubmittedStatus.APPROVED) {
+
+        await this.ChartMainService.bulkValueChangeCalculations({
+          charts: elements.map(el => ({
+            id: el.chartId,
+            xAxis: JSON.stringify(el.xAxis),
+            yAxis: el.yAxis ? JSON.stringify(el.yAxis) : undefined,
+            zAxis: el.zAxis ? JSON.stringify(el.zAxis) : undefined,
+          }))
+        });
+        // for (const element of elements) {
+        //   await tx.chartTable.update({
+        //     where: { id: element.chartId },
+        //     data: {
+        //       xAxis: (element.xAxis as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+        //       yAxis: (element.yAxis as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+        //       zAxis: (element.zAxis as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+        //     },
+        //   });
+        // }
+
+
+
+      }
+
+      if (status === SubmittedStatus.REJECTED) {
+        await tx.submissionReturn.upsert({
+          where: { submittedId: id },
+          update: { returnedAt: new Date() },
+          create: { submittedId: id },
         });
       }
-    }
 
-    if (status === SubmittedStatus.REJECTED) {
-      await tx.submissionReturn.upsert({
-        where: { submittedId: id },
-        update: { returnedAt: new Date() },
-        create: { submittedId: id },
+
+      const permission = await tx.notificationPermissionEmployee.findUnique({
+        where: { userId: employee.userId! },
+        select: { returnProject: true },
       });
+      return { updatedSubmission, employee, project, permission };
+    });
+
+
+    const { updatedSubmission, employee, project, permission } = result;
+
+    if (permission?.returnProject) {
+      const message = status === SubmittedStatus.APPROVED
+        ? `Your submission for project ${project.name} has been APPROVED.`
+        : `Your submission for project ${project.name} has been REJECTED.`;
+
+
+      this.notificationService.create(
+        {
+          receiverIds: [employee.userId!],
+          projectId: project.id,
+          context: message,
+          type: NotificationType.SUBMISSION_UPDATED_STATUS,
+        },
+        authUserId,
+      ).catch(err => console.error('Real-time notification failed:', err));
     }
 
-  
-    const permission = await tx.notificationPermissionEmployee.findUnique({
-      where: { userId: employee.userId! },
-      select: { returnProject: true },
-    });
-    return { updatedSubmission, employee, project, permission };
-  });
-
-  
-  const { updatedSubmission, employee, project, permission } = result;
-
-  if (permission?.returnProject) {
-    const message = status === SubmittedStatus.APPROVED
-      ? `Your submission for project ${project.name} has been APPROVED.`
-      : `Your submission for project ${project.name} has been REJECTED.`;
-
-  
-    this.notificationService.create(
-      {
-        receiverIds: [employee.userId!], 
-        projectId: project.id,
-        context: message,
-        type: NotificationType.SUBMISSION_UPDATED_STATUS,
-      },
-      authUserId,
-    ).catch(err => console.error('Real-time notification failed:', err));
+    return {
+      success: true,
+      message: `Submission ${status.toLowerCase()} successfully`,
+      data: updatedSubmission,
+    };
   }
-
-  return {
-    success: true,
-    message: `Submission ${status.toLowerCase()} successfully`,
-    data: updatedSubmission,
-  };
-}
 
   async delete(id: string, employeeId: string) {
     const submitted = await this.prisma.submitted.findUnique({ where: { id } });
@@ -398,43 +413,43 @@ async updateStatus(
     return { message: 'Submission deleted successfully' };
   }
 
-async getMyReturnedSubmissions(employeeId: string) {
-  return await this.prisma.submitted.findMany({
-    where: {
-      employeeId: employeeId,
-      status: 'REJECTED',
-    },
-    select: {
-      id: true,
-      information: true,
-      submission: true,
-      status: true,
-      updatedAt: true,
-      project: {
-        select: {
-          id: true,
-          name: true
+  async getMyReturnedSubmissions(employeeId: string) {
+    return await this.prisma.submitted.findMany({
+      where: {
+        employeeId: employeeId,
+        status: 'REJECTED',
+      },
+      select: {
+        id: true,
+        information: true,
+        submission: true,
+        status: true,
+        updatedAt: true,
+        project: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        submissionReturn: {
+          select: {
+            id: true,
+            returnedAt: true,
+          }
+        },
+        elements: {
+          select: {
+            id: true,
+            chartId: true,
+            xAxis: true,
+            yAxis: true,
+            zAxis: true
+          }
         }
       },
-      submissionReturn: {
-        select: {
-          id: true,
-          returnedAt: true,
-        }
-      },
-      elements: {
-        select: {
-          id: true,
-          chartId: true,
-          xAxis: true,
-          yAxis: true,
-          zAxis: true
-        }
+      orderBy: {
+        updatedAt: 'desc'
       }
-    },
-    orderBy: {
-      updatedAt: 'desc'
-    }
-  });
-}
+    });
+  }
 }

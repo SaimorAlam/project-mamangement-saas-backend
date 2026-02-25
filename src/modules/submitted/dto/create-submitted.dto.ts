@@ -56,27 +56,29 @@ export class SubmittedElementDto {
   })
   @IsString()
   chartId: string;
+@ApiPropertyOptional({
+  description: 'Updated X-Axis data in Stringified JSON Matrix format',
+  example: "[[\"Program A\",\"Station 1\",\"Station 2\",\"Station 3\"],[\"Project A\",0,0,0],[\"Project B\",0,0,0]]"
+})
+@IsString()
+xAxis: string;
 
-  @ApiPropertyOptional({ 
-    description: 'Updated X-Axis data in Stringified JSON Matrix format',
-    example: '[["Program A","Station 1","Station 2","Station 3"],["Project A",0,0,0],["Project B",0,0,0]]'
-  })
-  @IsOptional()
-  xAxis?: any;
+@ApiPropertyOptional({
+  description: 'Updated Y-Axis data in Stringified JSON Matrix format',
+  example: "[[\"Program A\",\"Station 1\",\"Station 2\",\"Station 3\"],[\"Project A\",0,0,0],[\"Project B\",0,0,0]]"
+})
+@IsOptional()
+@IsString()
+yAxis?: string;
 
-  @ApiPropertyOptional({ 
-    description: 'Updated Y-Axis data in Stringified JSON Matrix format',
-    example: '[["Program A","Station 1","Station 2","Station 3"],["Project A",0,0,0],["Project B",0,0,0]]'
-  })
-  @IsOptional()
-  yAxis?: any;
+@ApiPropertyOptional({
+  description: 'Updated Z-Axis data in Stringified JSON Matrix format',
+  example: "[[\"Program A\",\"Station 1\",\"Station 2\",\"Station 3\"],[\"Project A\",0,0,0],[\"Project B\",0,0,0]]"
+})
+@IsOptional()
+@IsString()
+zAxis?: string;
 
-  @ApiPropertyOptional({ 
-    description: 'Updated Z-Axis data in Stringified JSON Matrix format',
-    example: '[["Program A","Station 1","Station 2","Station 3"],["Project A",0,0,0],["Project B",0,0,0]]'
-  })
-  @IsOptional()
-  zAxis?: any;  
 }
 export class CreateSubmittedDto {
   @ApiProperty({ 
