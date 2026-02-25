@@ -15,14 +15,18 @@ import { RedisService } from '../../../common/db/redis/services/redis.service';
 
 
 interface PayloadType {
- userId: string;
- email?: string;
+  userId: string;
+  email?: string;
 }
 
 
 @WebSocketGateway({
   cors: {
-    origin: ['http://localhost:3000', 'http://localhost:5000'],
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:5000',
+      'https://lawal.sakibalhasa.xyz'
+    ],
     credentials: true,
   },
 })
@@ -36,12 +40,12 @@ export class Gateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly redisService: RedisService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   async handleConnection(client: Socket) {
     const token =
       client.handshake.auth?.token || client.handshake.headers?.authorization;
-   
+
     if (!token) {
       client.emit('error', { message: 'Authentication token is required' });
       client.disconnect();
@@ -70,9 +74,9 @@ export class Gateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-        console.log("---------------------------soket------------------------------------")
-            console.log(userId,client.id)
-     console.log("----------------------------end--------------------------")
+      console.log("---------------------------soket------------------------------------")
+      console.log(userId, client.id)
+      console.log("----------------------------end--------------------------")
 
       await this.redisService.hSet('userSocketMap', userId, client.id);
 
@@ -110,11 +114,11 @@ export class Gateway implements OnGatewayConnection, OnGatewayDisconnect {
     );
 
     const results = await Promise.all(promises);
-      console.log(promises)
-      console.log("----------------------------------")
-      console.log(results)
+    console.log(promises)
+    console.log("----------------------------------")
+    console.log(results)
     for (const socketId of results) {
-      console.log(socketId,"----------------------------")
+      console.log(socketId, "----------------------------")
       if (socketId) {
         this.server.to(socketId).emit(event, data);
       }
