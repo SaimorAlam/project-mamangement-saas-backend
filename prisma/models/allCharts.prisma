@@ -263,3 +263,17 @@ model RadarChart {
   chartTable   ChartTable @relation(fields: [chartTableId], references: [id])
   chartTableId String     @unique
 }
+
+model SplineChart {
+  id                String   @id @default(uuid())
+  numberOfDataset   Int
+  firstFiledDataset Int
+  lastFiledDAtaset  Int
+  filter_By         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  chartTable   ChartTable @relation(fields: [ChartTableId], references: [id])
+  ChartTableId String     @unique
+  widgets      Widget[]
+}

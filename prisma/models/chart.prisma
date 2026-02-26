@@ -35,6 +35,7 @@ model ChartTable {
   waterFallChart     WaterFallChart?
   candlestickChart   CandlestickChart?
   radarChart         RadarChart?
+  splineChart        SplineChart?
 
   // SABBIR - Relation to chart (one-to-one optional) //
   // Program         Program?         @relation(fields: [programId], references: [id])

@@ -539,7 +539,7 @@ export class ChartMainService {
         },
       });
 
-      console.log("-------------------------------one-------------------------------------------")
+
       if (rootchart && roottitle) {
         const project = await txPrisma.project.findUnique({
           where: { id: projectId! },
@@ -557,12 +557,13 @@ export class ChartMainService {
             projectId
           },
         });
+
       }
 
 
       switch (category) {
         case ChartName.BAR: {
-          const {numberOfDataset,firstFieldDataset,lastFieldDataset,widgets, } = createChartDto;
+          const { numberOfDataset, firstFieldDataset, lastFieldDataset, widgets, } = createChartDto;
           subChat = await txPrisma.barChart.create({
             data: {
               ChartTableId: mainChart.id,
@@ -584,7 +585,7 @@ export class ChartMainService {
           break;
         }
         case ChartName.HORIZONTAL_BAR: {
-          const {numberOfDataset,firstFieldDataset,lastFieldDataset,widgets,} = createChartDto;
+          const { numberOfDataset, firstFieldDataset, lastFieldDataset, widgets, } = createChartDto;
 
           console.log("Horizontal Bar Chart Data:", { numberOfDataset, firstFieldDataset, lastFieldDataset, widgets });
 
@@ -609,7 +610,7 @@ export class ChartMainService {
           break;
         }
         case ChartName.PIE: {
-          const { numberOfDataset, widgets, firstFieldDataset,lastFieldDataset, } = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
           subChat = await txPrisma.pi.create({
             data: {
               chartTableId: mainChart.id,
@@ -631,7 +632,7 @@ export class ChartMainService {
         }
 
         case ChartName.HEATMAP: {
-          const { numberOfDataset, widgets, firstFieldDataset,lastFieldDataset,} = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
 
           subChat = await txPrisma.heatMapChart.create({
             data: {
@@ -653,7 +654,7 @@ export class ChartMainService {
           break;
         }
         case ChartName.AREA: {
-          const { numberOfDataset, widgets, firstFieldDataset,lastFieldDataset, } = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
 
           subChat = await txPrisma.areaChart.create({
             data: {
@@ -675,9 +676,9 @@ export class ChartMainService {
           break;
         }
         case ChartName.LINE: {
-          const { numberOfDataset, widgets, firstFieldDataset,lastFieldDataset, } = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
 
-         
+
 
           subChat = await txPrisma.multiAxisChart.create({
             data: {
@@ -700,7 +701,7 @@ export class ChartMainService {
         }
 
         case ChartName.COLUMN: {
-          const { numberOfDataset, widgets, firstFieldDataset,lastFieldDataset,} = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
 
           subChat = await txPrisma.columnChart.create({
             data: {
@@ -722,7 +723,7 @@ export class ChartMainService {
           break;
         }
         case ChartName.HISTOGRAM: {
-          const { numberOfDataset, widgets,firstFieldDataset,lastFieldDataset, } = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
 
           subChat = await txPrisma.histogramChart.create({
             data: {
@@ -769,7 +770,7 @@ export class ChartMainService {
         }
 
         case ChartName.FUNNEL: {
-          const { numberOfDataset, widgets,firstFieldDataset,lastFieldDataset, } = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
 
           subChat = await txPrisma.funnelChart.create({
             data: {
@@ -790,7 +791,7 @@ export class ChartMainService {
           break;
         }
         case ChartName.WATERFALL: {
-          const { numberOfDataset, widgets, firstFieldDataset,lastFieldDataset, } = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
 
           subChat = await txPrisma.waterFallChart.create({
             data: {
@@ -811,7 +812,7 @@ export class ChartMainService {
           break;
         }
         case ChartName.RADAR: {
-          const { numberOfDataset, widgets, firstFieldDataset,lastFieldDataset, } = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
 
           subChat = await txPrisma.radarChart.create({
             data: {
@@ -833,7 +834,7 @@ export class ChartMainService {
         }
 
         case ChartName.DOUGHNUT: {
-          const { numberOfDataset, widgets, firstFieldDataset,lastFieldDataset, } = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
 
           subChat = await txPrisma.doughnutChart.create({
             data: {
@@ -854,7 +855,7 @@ export class ChartMainService {
           break;
         }
         case ChartName.CANDLESTICK: {
-          const { numberOfDataset, widgets, firstFieldDataset,lastFieldDataset, } = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
 
           subChat = await txPrisma.candlestickChart.create({
             data: {
@@ -875,7 +876,7 @@ export class ChartMainService {
           break;
         }
         case ChartName.STACK_BAR_HORIZONTAL: {
-          const { numberOfDataset, widgets, firstFieldDataset,lastFieldDataset, } = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
 
           subChat = await txPrisma.stackedBarChart.create({
             data: {
@@ -927,7 +928,7 @@ export class ChartMainService {
         }
 
         case ChartName.SCATTER: {
-          const { numberOfDataset, widgets, firstFieldDataset,lastFieldDataset,} = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
 
           subChat = await txPrisma.scatterChart.create({
             data: {
@@ -945,6 +946,28 @@ export class ChartMainService {
                 : undefined,
             },
           });
+          break;
+        }
+        case ChartName.SPLINE: {
+          const { numberOfDataset, firstFieldDataset, lastFieldDataset, widgets, } = createChartDto;
+          subChat = await txPrisma.splineChart.create({
+            data: {
+              ChartTableId: mainChart.id,
+              numberOfDataset: numberOfDataset!,
+              firstFiledDataset: firstFieldDataset!,
+              lastFiledDAtaset: lastFieldDataset!,
+
+              widgets: widgets
+                ? {
+                  create: widgets.map((widget) => ({
+                    legendName: widget.legendName ?? 'Default Legend',
+                    color: widget.color ?? '#000000',
+                  })),
+                }
+                : undefined,
+            },
+          });
+
           break;
         }
 
@@ -1301,6 +1324,9 @@ export class ChartMainService {
         radarChart: {
           include: { widgets: true },
         },
+        splineChart: {
+          include: { widgets: true },
+        },
       },
     });
 
@@ -1484,6 +1510,7 @@ export class ChartMainService {
           stackedBarChart: { include: { widgets: true } },
           solidGaugeChart: { include: { widgets: true } },
           scatterChart: { include: { widgets: true } },
+          splineChart: { include: { widgets: true } },
         },
       });
 
@@ -1522,6 +1549,7 @@ export class ChartMainService {
         originalChart.stackedBarChart,
         originalChart.solidGaugeChart,
         originalChart.scatterChart,
+        originalChart.splineChart,
       ].find(Boolean);
 
       if (chartMap) {
@@ -1602,6 +1630,7 @@ export class ChartMainService {
           stackedBarChart: { include: { widgets: true } },
           solidGaugeChart: { include: { widgets: true } },
           scatterChart: { include: { widgets: true } },
+          splineChart: { include: { widgets: true } },
         },
       });
 
@@ -1753,6 +1782,9 @@ export class ChartMainService {
         radarChart: {
           include: { widgets: true },
         },
+        splineChart: {
+          include: { widgets: true },
+        },
       },
     });
   }
@@ -1856,6 +1888,7 @@ export class ChartMainService {
         waterFallChart: { include: { widgets: true } },
         candlestickChart: { include: { widgets: true } },
         radarChart: { include: { widgets: true } },
+        splineChart: { include: { widgets: true } },
       },
     });
 
@@ -1943,6 +1976,9 @@ export class ChartMainService {
         radarChart: {
           include: { widgets: true },
         },
+        splineChart: {
+          include: { widgets: true },
+        },
       },
     });
   }
@@ -2005,6 +2041,7 @@ export class ChartMainService {
       await tx.waterFallChart.deleteMany({ where: { chartTableId: id } });
       await tx.candlestickChart.deleteMany({ where: { chartTableId: id } });
       await tx.radarChart.deleteMany({ where: { chartTableId: id } });
+      await tx.splineChart.deleteMany({ where: { ChartTableId: id } });
 
       // 5️⃣ Finally delete main chart
       return tx.chartTable.delete({
