@@ -50,61 +50,69 @@ import { Type } from 'class-transformer';
 
 
 export class SubmittedElementDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'The ID of the target chart to be updated',
-    example: '550e8400-e29b-41d4-a716-446655440000' 
+    example: '550e8400-e29b-41d4-a716-446655440000'
   })
   @IsString()
   chartId: string;
-@ApiPropertyOptional({
-  description: 'Updated X-Axis data in Stringified JSON Matrix format',
-  example: "[[\"Program A\",\"Station 1\",\"Station 2\",\"Station 3\"],[\"Project A\",0,0,0],[\"Project B\",0,0,0]]"
-})
-@IsString()
-xAxis: string;
+  @ApiPropertyOptional({
+    description: 'Updated X-Axis data in Stringified JSON Matrix format',
+    example: "[[\"Program A\",\"Station 1\",\"Station 2\",\"Station 3\"],[\"Project A\",0,0,0],[\"Project B\",0,0,0]]"
+  })
+  @IsString()
+  xAxis: string;
 
-@ApiPropertyOptional({
-  description: 'Updated Y-Axis data in Stringified JSON Matrix format',
-  example: "[[\"Program A\",\"Station 1\",\"Station 2\",\"Station 3\"],[\"Project A\",0,0,0],[\"Project B\",0,0,0]]"
-})
-@IsOptional()
-@IsString()
-yAxis?: string;
+  @ApiPropertyOptional({
+    description: 'Updated Y-Axis data in Stringified JSON Matrix format',
+    example: "[[\"Program A\",\"Station 1\",\"Station 2\",\"Station 3\"],[\"Project A\",0,0,0],[\"Project B\",0,0,0]]"
+  })
+  @IsOptional()
+  @IsString()
+  yAxis?: string;
 
-@ApiPropertyOptional({
-  description: 'Updated Z-Axis data in Stringified JSON Matrix format',
-  example: "[[\"Program A\",\"Station 1\",\"Station 2\",\"Station 3\"],[\"Project A\",0,0,0],[\"Project B\",0,0,0]]"
-})
-@IsOptional()
-@IsString()
-zAxis?: string;
+  @ApiPropertyOptional({
+    description: 'Updated Z-Axis data in Stringified JSON Matrix format',
+    example: "[[\"Program A\",\"Station 1\",\"Station 2\",\"Station 3\"],[\"Project A\",0,0,0],[\"Project B\",0,0,0]]"
+  })
+  @IsOptional()
+  @IsString()
+  zAxis?: string;
 
 }
 export class CreateSubmittedDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'General information about the submission',
-    example: 'Monthly performance report for Q1' 
+    example: 'Monthly performance report for Q1'
   })
   @IsString()
   @IsNotEmpty()
   information: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Detailed submission notes or content',
-    example: 'Draft submission for manager review' 
+    example: 'Draft submission for manager review'
   })
   @IsString()
   @IsNotEmpty()
   submission: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'ID of the project this submission belongs to',
-    example: '7a2d8b1c-3e4f-5g6h-7i8j-9k0l1m2n3o4p' 
+    example: '7a2d8b1c-3e4f-5g6h-7i8j-9k0l1m2n3o4p'
   })
   @IsUUID()
   projectId: string;
 
-  @ApiProperty({ 
+
+  @ApiProperty({
+    description: 'IP Address',
+    example: '::1'
+  })
+  @IsString()
+  ipAddress: string;
+
+  @ApiProperty({
     type: [SubmittedElementDto],
     description: 'Array of chart data elements to be submitted for approval'
   })

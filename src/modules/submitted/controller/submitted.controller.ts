@@ -21,11 +21,16 @@ import { Roles } from 'src/common/jwt/roles.decorator';
 import { RequestWithUser } from 'src/types/RequestWithUser';
 import { Role } from 'generated/prisma';
 import { ApiOperation } from '@nestjs/swagger';
+import { ActivityService } from 'src/modules/activity/service/activity.service';
+import { CreateActivityDto } from 'src/modules/activity/dto';
 
 @Controller('submitted')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class SubmittedController {
-  constructor(private readonly submittedService: SubmittedService) { }
+  constructor(
+    private readonly submittedService: SubmittedService,
+    private readonly actionService: ActivityService
+  ) { }
 
   @Post()
   @Roles('EMPLOYEE')
@@ -41,6 +46,18 @@ export class SubmittedController {
       createSubmittedDto,
       employeeId,
     );
+
+    const data: CreateActivityDto = {
+      description: "upload excel file",
+      projectId: createSubmittedDto.projectId,
+      userId: employeeId,
+      actionType: "FILE_ADDED",
+      ipAddress: createSubmittedDto.ipAddress,
+
+    }
+    if (submission) {
+      await this.actionService.createActivityForEmployee(employeeId, data, createSubmittedDto.ipAddress);
+    }
     return {
       message: 'Submission created successfully',
       submission,
@@ -108,19 +125,19 @@ export class SubmittedController {
   }
 
 
-@Get('returns/my-submissions')
-@ApiOperation({ summary: 'Get my rejected submissions using employeeId' })
-async getMyReturns(@Req() req: RequestWithUser) {
-  const employeeId = req.user.employeeId; 
-  
-  console.log("Fetching for Employee ID:", employeeId);
+  @Get('returns/my-submissions')
+  @ApiOperation({ summary: 'Get my rejected submissions using employeeId' })
+  async getMyReturns(@Req() req: RequestWithUser) {
+    const employeeId = req.user.employeeId;
 
-  const data = await this.submittedService.getMyReturnedSubmissions(employeeId as string);
+    console.log("Fetching for Employee ID:", employeeId);
 
-  return {
-    success: true,
-    message: 'Returned submissions retrieved successfully',
-    data,
-  };
-}
+    const data = await this.submittedService.getMyReturnedSubmissions(employeeId as string);
+
+    return {
+      success: true,
+      message: 'Returned submissions retrieved successfully',
+      data,
+    };
+  }
 }
