@@ -13,6 +13,7 @@ import {
   UploadedFile,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { UserService } from '../service/user.service';
 import { ManagerService } from '../service/manager.service';
 import { EmployeeService } from '../service/employee.service';
@@ -39,6 +40,7 @@ export class UserController {
     private readonly managerService: ManagerService,
     private readonly employeeService: EmployeeService,
     private readonly viewerService: ViewerService,
+    private readonly configService: ConfigService,
   ) { }
 
   @Get()
@@ -110,7 +112,7 @@ export class UserController {
     }
 
     if (file) {
-      updateUserDto.profileImage = file.path;
+      updateUserDto.profileImage = this.configService.get('server_url') + file.path;
     }
 
     const result = await this.userService.update(userId, updateUserDto);
@@ -127,7 +129,8 @@ export class UserController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (file) {
-      updateUserDto.profileImage = file.path;
+      console.log(this.configService.get('server_url'));
+      updateUserDto.profileImage = this.configService.get('server_url') + file.path;
     }
 
     const result = await this.userService.update(userId, updateUserDto);
