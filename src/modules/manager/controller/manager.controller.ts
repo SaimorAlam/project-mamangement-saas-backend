@@ -28,7 +28,7 @@ export class ManagerController {
   constructor(
     private readonly chartService: ChartService,
     private readonly managerService: ManagerService,
-  ) {}
+  ) { }
 
   @Get('dashboard')
   @Roles('MANAGER')
@@ -315,18 +315,35 @@ export class ManagerController {
     };
   }
 
+  // @Get('activity')
+  // async getSubmissionActivity(@Req() req: RequestWithUser) {
+  //   const userId = req.user.managerId;
+  //   if (!userId) {
+  //     throw new UnauthorizedException('User ID not found in token');
+  //   }
+  //   const data = await this.managerService.getSubmissionActivity(userId);
+  //   return {
+  //     message: 'activity fetch  successfully',
+  //     data,
+  //   };
+  // }
+
   @Get('activity')
   async getSubmissionActivity(@Req() req: RequestWithUser) {
-    const userId = req.user.managerId;
-    if (!userId) {
-      throw new UnauthorizedException('User ID not found in token');
+    const managerId = req.user.managerId;
+
+    if (!managerId) {
+      throw new UnauthorizedException('Manager ID not found in token');
     }
-    const data = await this.managerService.getSubmissionActivity(userId);
+
+    const data = await this.managerService.getSubmissionActivity(managerId);
+
     return {
-      message: 'activity fetch  successfully',
+      message: 'Activity fetched successfully',
       data,
     };
   }
+
   @Delete(':id/delete-submission')
   async deleteSubmission(
     @Param('id') submissionId: string,
