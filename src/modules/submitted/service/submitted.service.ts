@@ -38,7 +38,11 @@ export class SubmittedService {
       select: {
         id: true,
         name: true,
-        manager: { select: { id: true } },
+        manager: {
+          select: {
+            userId: true
+          }
+        },
         projectEmployees: {
           where: { employeeId: employeeId }
         }
@@ -103,24 +107,56 @@ export class SubmittedService {
 
 
   private async handleNotifications(project: any, senderId: string) {
-    const managerUserId = project.manager?.user?.id || project.manager?.userId;
+    const managerUserId = project.manager?.userId || project.manager?.user?.id;
+    if (!managerUserId) {
+      return;
+    }
+    try {
+      const permission = await this.prisma.notificationPermissionManager.findUnique({
+        where: { userId: managerUserId },
+      });
 
-    if (!managerUserId) return;
-    const permission = await this.prisma.notificationPermissionManager.findUnique({
-      where: { userId: managerUserId },
-    });
-    if (permission?.submittedProject) {
-      await this.notificationService.create(
-        {
-          receiverIds: [managerUserId],
-          projectId: project.id,
-          context: `New submission for project: ${project.name}. Approval required to update charts.`,
-          type: NotificationType.SHEET_UPDATE_REQUEST,
-        },
-        senderId
-      );
+      const isEnabled = permission ? permission.submittedProject : true;
+
+      if (isEnabled) {
+        await this.notificationService.create(
+          {
+            receiverIds: [managerUserId],
+            projectId: project.id,
+            context: `New submission for project: ${project.name}. Approval required to update charts.`,
+            type: NotificationType.SHEET_UPDATE_REQUEST,
+          },
+          senderId
+        );
+
+      } else {
+
+      }
+    } catch (error) {
+
+      console.error(' Error in handleNotifications:', error.message);
     }
   }
+
+  // private async handleNotifications(project: any, senderId: string) {
+  //   const managerUserId = project.manager?.user?.id || project.manager?.userId;
+
+  //   if (!managerUserId) return;
+  //   const permission = await this.prisma.notificationPermissionManager.findUnique({
+  //     where: { userId: managerUserId },
+  //   });
+  //   if (permission?.submittedProject) {
+  //     await this.notificationService.create(
+  //       {
+  //         receiverIds: [managerUserId],
+  //         projectId: project.id,
+  //         context: `New submission for project: ${project.name}. Approval required to update charts.`,
+  //         type: NotificationType.SHEET_UPDATE_REQUEST,
+  //       },
+  //       senderId
+  //     );
+  //   }
+  // }
 
   // async findAll(
   //   query: GetAllSubmissionsDto,
