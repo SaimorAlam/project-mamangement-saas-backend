@@ -6,7 +6,7 @@ export class ActivityMapper {
       user: {
         id: activity.user.id,
         name: activity.user.name,
-        avatar: activity.user.profileImage || undefined,
+        avatar: activity.user.profileImage
       },
       description: activity.description,
       projectName: activity.project.name,
