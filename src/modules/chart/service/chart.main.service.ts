@@ -1868,7 +1868,7 @@ export class ChartMainService {
         },
       },
       orderBy: {
-        createdAt: 'asc',
+        createdAt: 'desc',
       },
       include: {
         barChart: { include: { widgets: true } },
