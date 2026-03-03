@@ -1362,6 +1362,7 @@ export class ChartMainService {
         data: {
           value: history?.xAxis,
           chartId: id,
+          createdAt: updatedata.datasettime || new Date()
         }
       })
     }
@@ -1464,7 +1465,7 @@ export class ChartMainService {
         chartId: chartId
       },
       orderBy: {
-        createdAt: 'asc'
+        createdAt: 'desc'
       }
     });
     return history;

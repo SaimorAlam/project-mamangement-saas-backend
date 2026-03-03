@@ -38,6 +38,16 @@ export class UpdateSingleChartDto {
   @IsString()
   @IsJSON()
   zAxis?: string;
+
+  @ApiProperty({
+    description: 'Optional datasettime',
+    required: false,
+    example: '2022-01-01T00:00:00.000Z',
+  })
+  @IsOptional()
+  @IsString()
+  datasettime?: string;
+
 }
 
 
