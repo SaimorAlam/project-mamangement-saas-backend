@@ -62,20 +62,20 @@ export class CreateChartDto extends IntersectionType(
   category: ChartName;
 
   @ApiProperty({
-    example: '{\"labels\":[[\"Sunday\",1,2,3],[\"Monday\",2,3,4],[\"Tuesday\",3,4,5],[\"Wednesday\",4,5,6],[\"Thursday\",5,6,7],[\"Friday\",6,7,8],[\"Saturday\",7,8,9]]}',
+    example: "[[\"Day\",\"absent\",\"late\",\"present\"],[\"Sunday\",1,2,3],[\"Monday\",2,3,4],[\"Tuesday\",3,4,5],[\"Wednesday\",4,5,6],[\"Thursday\",5,6,7],[\"Friday\",6,7,8],[\"Saturday\",7,8,9]]",
   })
   @IsJSON()
   xAxis: string;
 
   @ApiProperty({
-    example: '{\"labels\":[[\"Sunday\",1,2,3],[\"Monday\",2,3,4],[\"Tuesday\",3,4,5],[\"Wednesday\",4,5,6],[\"Thursday\",5,6,7],[\"Friday\",6,7,8],[\"Saturday\",7,8,9]]}',
+    example: "[[\"Day\",\"absent\",\"late\",\"present\"],[\"Sunday\",1,2,3],[\"Monday\",2,3,4],[\"Tuesday\",3,4,5],[\"Wednesday\",4,5,6],[\"Thursday\",5,6,7],[\"Friday\",6,7,8],[\"Saturday\",7,8,9]]",
   })
   @IsOptional()
   @IsJSON()
   yAxis?: string;
 
   @ApiProperty({
-    example: '{\"labels\":[[\"Sunday\",1,2,3],[\"Monday\",2,3,4],[\"Tuesday\",3,4,5],[\"Wednesday\",4,5,6],[\"Thursday\",5,6,7],[\"Friday\",6,7,8],[\"Saturday\",7,8,9]]}',
+    example: "[[\"Day\",\"absent\",\"late\",\"present\"],[\"Sunday\",1,2,3],[\"Monday\",2,3,4],[\"Tuesday\",3,4,5],[\"Wednesday\",4,5,6],[\"Thursday\",5,6,7],[\"Friday\",6,7,8],[\"Saturday\",7,8,9]]",
     required: false,
   })
   @IsOptional()
