@@ -42,7 +42,7 @@ export class CreateBarChartDto {
   })
   @IsOptional()
   @IsInt()
-  firstFiledDataset?: number;
+  firstFieldDataset?: number;
 
   @ApiPropertyOptional({
     description: 'Index of the last dataset to display (inclusive)',
@@ -50,7 +50,7 @@ export class CreateBarChartDto {
   })
   @IsOptional()
   @IsInt()
-  lastFiledDAtaset?: number;
+  lastFieldDataset?: number;
 
   @ApiPropertyOptional({
     type: [ShowWidgetDto],
@@ -65,10 +65,10 @@ export class CreateBarChartDto {
   widgets?: ShowWidgetDto[];
 
 
-   @ApiPropertyOptional({
+  @ApiPropertyOptional({
     description: 'if filter is used say that legent name ',
   })
   @IsOptional()
-  @IsInt()
-  filter_By?: String; 
+  @IsString()
+  filter_By?: string;
 }

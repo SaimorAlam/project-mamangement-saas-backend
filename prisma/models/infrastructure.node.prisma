@@ -17,8 +17,9 @@ model InfrastructureNode {
   plannedResourceCost Float    @default(0)
 
   // Progress 
-  progress         Float? // only leaf
-  computedProgress Float   @default(0)
+  progress         Json?   
+  computedProgress Json    @default("[]") 
+  numericProgress  Float   @default(0)
   weight           Float   @default(1)
   isLeaf           Boolean @default(true)
 

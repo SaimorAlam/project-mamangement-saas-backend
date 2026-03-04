@@ -4,16 +4,16 @@ import { IsArray, IsJSON, IsOptional, IsString, IsUUID, ValidateNested } from 'c
 
 export class UpdateSingleChartDto {
 
-   @ApiProperty({
+  @ApiProperty({
     description: 'Chart ID',
     example: 'c6b4e52f-88f6-4f7d-9e47-5a0c90b2d9ab',
   })
-  @IsUUID()
+  @IsString()
   id: string;
 
   @ApiProperty({
     description: 'The X-axis data for the chart as a JSON string',
-    example: '{"labels":[["Sunday",1,2,3],["Monday",2,3,4],["Tuesday",3,4,5],["Wednesday",4,5,6],["Thursday",5,6,7],["Friday",6,7,8],["Saturday",7,8,9]]}',
+    example: "[[\"Day\",\"absent\",\"late\",\"present\"],[\"Sunday\",1,2,3],[\"Monday\",2,3,4],[\"Tuesday\",3,4,5],[\"Wednesday\",4,5,6],[\"Thursday\",5,6,7],[\"Friday\",6,7,8],[\"Saturday\",7,8,9]]",
   })
   @IsString()
   @IsJSON()
@@ -22,7 +22,7 @@ export class UpdateSingleChartDto {
   @ApiProperty({
     description: 'Optional Y-axis data as JSON string',
     required: false,
-    example: '{"values":[10,20,30,40,50,60,70]}',
+    example: "[[\"Day\",\"absent\",\"late\",\"present\"],[\"Sunday\",1,2,3],[\"Monday\",2,3,4],[\"Tuesday\",3,4,5],[\"Wednesday\",4,5,6],[\"Thursday\",5,6,7],[\"Friday\",6,7,8],[\"Saturday\",7,8,9]]",
   })
   @IsOptional()
   @IsString()
@@ -32,12 +32,22 @@ export class UpdateSingleChartDto {
   @ApiProperty({
     description: 'Optional Z-axis data as JSON string',
     required: false,
-    example: '{"values":[5,15,25,35,45,55,65]}',
+    example: "[[\"Day\",\"absent\",\"late\",\"present\"],[\"Sunday\",1,2,3],[\"Monday\",2,3,4],[\"Tuesday\",3,4,5],[\"Wednesday\",4,5,6],[\"Thursday\",5,6,7],[\"Friday\",6,7,8],[\"Saturday\",7,8,9]]",
   })
   @IsOptional()
   @IsString()
   @IsJSON()
   zAxis?: string;
+
+  @ApiProperty({
+    description: 'Optional datasettime',
+    required: false,
+    example: '2022-01-01T00:00:00.000Z',
+  })
+  @IsOptional()
+  @IsString()
+  datasettime?: string;
+
 }
 
 

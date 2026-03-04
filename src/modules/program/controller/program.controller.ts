@@ -21,10 +21,13 @@ import { FindAllProjectsInProgramDto } from '../dto/find-all-projects-in-program
 import { UpdateProgramNameDto } from '../dto/update-program.dto';
 import { Request } from 'express';
 import { SyncTagsDto } from '../dto/tag-program.dto';
+import { ProgramProjectService } from '../service/programproject.services';
 
 @Controller('program')
 export class ProgramController {
-  constructor(private readonly programService: ProgramService) { }
+  constructor(private readonly programService: ProgramService,
+              private readonly programProjectService: ProgramProjectService
+  ) { }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('CLIENT')
@@ -39,7 +42,7 @@ export class ProgramController {
   }
 
 
-  @Get()
+  @Get('all')
   async findAll(@Query() query: GetAllProgramsDto) {
     try {
       const data = await this.programService.findAll(query);
@@ -73,7 +76,7 @@ export class ProgramController {
     @Param('id') id: string,
     @Query() query: FindAllProjectsInProgramDto,
   ) {
-    const data = await this.programService.findAllProjectsByProgram(id, query);
+    const data = await this.programProjectService.findAllProjectsByProgram(id, query);
     return {
       message: 'Projects fetched successfully',
       data,

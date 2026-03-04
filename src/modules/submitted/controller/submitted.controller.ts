@@ -20,11 +20,17 @@ import { RolesGuard } from 'src/common/jwt/roles.guard';
 import { Roles } from 'src/common/jwt/roles.decorator';
 import { RequestWithUser } from 'src/types/RequestWithUser';
 import { Role } from 'generated/prisma';
+import { ApiOperation } from '@nestjs/swagger';
+import { ActivityService } from 'src/modules/activity/service/activity.service';
+import { CreateActivityDto } from 'src/modules/activity/dto';
 
 @Controller('submitted')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class SubmittedController {
-  constructor(private readonly submittedService: SubmittedService) {}
+  constructor(
+    private readonly submittedService: SubmittedService,
+    private readonly actionService: ActivityService
+  ) { }
 
   @Post()
   @Roles('EMPLOYEE')
@@ -40,45 +46,49 @@ export class SubmittedController {
       createSubmittedDto,
       employeeId,
     );
+
+    const data: CreateActivityDto = {
+      description: "upload excel file",
+      projectId: createSubmittedDto.projectId,
+      userId: employeeId,
+      actionType: "FILE_ADDED",
+      ipAddress: createSubmittedDto.ipAddress,
+
+    }
+    if (submission) {
+      await this.actionService.createActivityForEmployee(employeeId, data, createSubmittedDto.ipAddress);
+    }
     return {
       message: 'Submission created successfully',
       submission,
     };
   }
 
-  @Get()
-  @Roles('EMPLOYEE')
+
+  @Get('all')
   async findAll(
     @Query() query: GetAllSubmissionsDto,
-    @Req() req: RequestWithUser,
+    @Req() req: RequestWithUser
   ) {
-    const employeeId = req.user.employeeId;
-    if (!employeeId) {
-      throw new UnauthorizedException('Employee ID not found in token');
-    }
-    const AllSubmissions = await this.submittedService.findAll(
-      query,
-      employeeId,
-    );
-    return { message: 'Submissions retrieved successfully', AllSubmissions };
+    const authUserId = req.user.userId;
+    const userRole = req.user.role;
+
+    return this.submittedService.findAll(query, authUserId, userRole);
   }
 
   @Get(':id')
-  @Roles('EMPLOYEE')
+  @ApiOperation({ summary: 'Get a single submission by ID' })
   async findOne(@Param('id') id: string, @Req() req: RequestWithUser) {
-    const employeeId = req.user.employeeId;
-    if (!employeeId) {
-      throw new UnauthorizedException('Employee ID not found in token');
-    }
-    const singleSubmitions = await this.submittedService.findOne(
-      id,
-      employeeId,
-    );
+    const { userId, role } = req.user;
+
+    const data = await this.submittedService.findOne(id, userId, role);
+
     return {
       message: 'Submission retrieved successfully',
-      singleSubmitions,
+      data,
     };
   }
+
 
   @Patch(':id/status')
   @Roles(Role.MANAGER)
@@ -88,7 +98,7 @@ export class SubmittedController {
     @Req() req: RequestWithUser
   ) {
 
-      const mangerId = req.user.managerId;
+    const mangerId = req.user.managerId;
     if (!mangerId) {
       throw new UnauthorizedException('Employee ID not found in token');
     }
@@ -112,5 +122,22 @@ export class SubmittedController {
     }
     await this.submittedService.delete(id, employeeId);
     return { message: 'Submission deleted successfully' };
+  }
+
+
+  @Get('returns/my-submissions')
+  @ApiOperation({ summary: 'Get my rejected submissions using employeeId' })
+  async getMyReturns(@Req() req: RequestWithUser) {
+    const employeeId = req.user.employeeId;
+
+    console.log("Fetching for Employee ID:", employeeId);
+
+    const data = await this.submittedService.getMyReturnedSubmissions(employeeId as string);
+
+    return {
+      success: true,
+      message: 'Returned submissions retrieved successfully',
+      data,
+    };
   }
 }

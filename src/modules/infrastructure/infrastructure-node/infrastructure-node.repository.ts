@@ -67,17 +67,44 @@ export class InfrastructureNodeRepository {
       orderBy: { createdAt: 'asc' },
     });
   }
-  updateNode(id: string, data: Prisma.InfrastructureNodeUpdateInput) {
+  // updateNode(id: string, data: Prisma.InfrastructureNodeUpdateInput) {
+  //   return this.prisma.infrastructureNode.update({
+  //     where: { id },
+  //     data,
+  //   });
+  // }
+  // async createNode(data: Prisma.InfrastructureNodeCreateInput) {
+  //   return await this.prisma.infrastructureNode.create({
+  //     data,
+  //   });
+  // }
+
+
+
+
+  async createNode(data: any) {
+    return this.prisma.infrastructureNode.create({
+      data: {
+        ...data,
+        progress: data.progress || [],
+        computedProgress: data.computedProgress || [],
+      },
+    });
+  }
+
+  async updateNode(nodeId: string, data: any) {
     return this.prisma.infrastructureNode.update({
-      where: { id },
-      data,
+      where: { id: nodeId },
+      data: {
+        ...data,
+        // Ensure progress fields are properly handled
+        progress: data.progress !== undefined ? data.progress : undefined,
+        computedProgress: data.computedProgress !== undefined ? data.computedProgress : undefined,
+      },
     });
   }
-  async createNode(data: Prisma.InfrastructureNodeCreateInput) {
-    return await this.prisma.infrastructureNode.create({
-      data,
-    });
-  }
+
+  
   findChildren(parentId: string) {
     return this.prisma.infrastructureNode.findMany({
       where: { parentId },

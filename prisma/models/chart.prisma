@@ -1,7 +1,7 @@
 model ChartTable {
   id         String       @unique()
   title      String
-  grouptitle String       @unique()
+  grouptitle String
   parentId   String?
   parent     ChartTable?  @relation("ChartHierarchy", fields: [parentId], references: [id])
   children   ChartTable[] @relation("ChartHierarchy")
@@ -35,6 +35,7 @@ model ChartTable {
   waterFallChart     WaterFallChart?
   candlestickChart   CandlestickChart?
   radarChart         RadarChart?
+  splineChart        SplineChart?
 
   // SABBIR - Relation to chart (one-to-one optional) //
   // Program         Program?         @relation(fields: [programId], references: [id])
@@ -48,6 +49,9 @@ model ChartTable {
 
   //history
   history ChartHistory[]
+
+  // for submitted 
+  submittedElements SubmittedElement[]
 }
 
 model ChartHistory {

@@ -29,16 +29,7 @@ export class ChartMainService {
 
     const result = await this.prisma.$transaction(async (txPrisma) => {
 
-      const existingGroupTitle = await txPrisma.chartTable.findUnique({
-        where: { grouptitle },
-        select: { id: true },
-      });
 
-      if (existingGroupTitle) {
-        throw new BadRequestException(
-          `Group title "${grouptitle}" already exists`,
-        );
-      }
       if (parentId) {
         const parentExists = await txPrisma.chartTable.findUnique({
           where: { id: parentId },
@@ -98,7 +89,7 @@ export class ChartMainService {
           const {
             numberOfDataset,
             firstFiledDataset,
-            lastFiledDAtaset,
+            lastFieldDataset: lastFiledDAtaset,
             widgets,
           } = createChartDto;
 
@@ -416,7 +407,7 @@ export class ChartMainService {
           break;
         }
         case ChartName.STACK_BAR_HORIZONTAL: {
-          const { numberOfDataset, widgets, firstFiledDataset, lastFiledDAtaset, } = createChartDto;
+          const { numberOfDataset, widgets, firstFiledDataset, lastFieldDataset: lastFiledDAtaset, } = createChartDto;
 
           subChat = await txPrisma.stackedBarChart.create({
             data: {
@@ -512,16 +503,7 @@ export class ChartMainService {
 
     const result = await this.prisma.$transaction(async (txPrisma) => {
 
-      const existingGroupTitle = await txPrisma.chartTable.findUnique({
-        where: { grouptitle },
-        select: { id: true },
-      });
 
-      if (existingGroupTitle) {
-        throw new BadRequestException(
-          `Group title "${grouptitle}" already exists`,
-        );
-      }
 
 
       if (parentId) {
@@ -575,24 +557,19 @@ export class ChartMainService {
             projectId
           },
         });
+
       }
 
 
       switch (category) {
         case ChartName.BAR: {
-          const {
-            numberOfDataset,
-            firstFiledDataset,
-            lastFiledDAtaset,
-            widgets,
-          } = createChartDto;
-
+          const { numberOfDataset, firstFieldDataset, lastFieldDataset, widgets, } = createChartDto;
           subChat = await txPrisma.barChart.create({
             data: {
               ChartTableId: mainChart.id,
               numberOfDataset: numberOfDataset!,
-              firstFiledDataset: firstFiledDataset!,
-              lastFiledDAtaset: lastFiledDAtaset!,
+              firstFiledDataset: firstFieldDataset!,
+              lastFiledDAtaset: lastFieldDataset!,
 
               widgets: widgets
                 ? {
@@ -608,12 +585,9 @@ export class ChartMainService {
           break;
         }
         case ChartName.HORIZONTAL_BAR: {
-          const {
-            numberOfDataset,
-            firstFieldDataset,
-            lastFieldDataset,
-            widgets,
-          } = createChartDto;
+          const { numberOfDataset, firstFieldDataset, lastFieldDataset, widgets, } = createChartDto;
+
+          console.log("Horizontal Bar Chart Data:", { numberOfDataset, firstFieldDataset, lastFieldDataset, widgets });
 
           subChat = await txPrisma.horizontalBarChart.create({
             data: {
@@ -636,8 +610,7 @@ export class ChartMainService {
           break;
         }
         case ChartName.PIE: {
-          const { numberOfDataset, widgets, firstFieldDataset,
-            lastFieldDataset, } = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
           subChat = await txPrisma.pi.create({
             data: {
               chartTableId: mainChart.id,
@@ -704,6 +677,8 @@ export class ChartMainService {
         }
         case ChartName.LINE: {
           const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
+
+
 
           subChat = await txPrisma.multiAxisChart.create({
             data: {
@@ -901,14 +876,14 @@ export class ChartMainService {
           break;
         }
         case ChartName.STACK_BAR_HORIZONTAL: {
-          const { numberOfDataset, widgets, firstFiledDataset, lastFiledDAtaset, } = createChartDto;
+          const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartDto;
 
           subChat = await txPrisma.stackedBarChart.create({
             data: {
               ChartTableId: mainChart.id,
               numberOfDataset: numberOfDataset!,
-              firstFiledDataset: firstFiledDataset!,
-              lastFiledDAtaset: lastFiledDAtaset!,
+              firstFiledDataset: firstFieldDataset!,
+              lastFiledDAtaset: lastFieldDataset!,
               widgets: widgets
                 ? {
                   create: widgets.map((widget) => ({
@@ -973,6 +948,28 @@ export class ChartMainService {
           });
           break;
         }
+        case ChartName.SPLINE: {
+          const { numberOfDataset, firstFieldDataset, lastFieldDataset, widgets, } = createChartDto;
+          subChat = await txPrisma.splineChart.create({
+            data: {
+              ChartTableId: mainChart.id,
+              numberOfDataset: numberOfDataset!,
+              firstFiledDataset: firstFieldDataset!,
+              lastFiledDAtaset: lastFieldDataset!,
+
+              widgets: widgets
+                ? {
+                  create: widgets.map((widget) => ({
+                    legendName: widget.legendName ?? 'Default Legend',
+                    color: widget.color ?? '#000000',
+                  })),
+                }
+                : undefined,
+            },
+          });
+
+          break;
+        }
 
         // scatterChart
 
@@ -1015,27 +1012,106 @@ export class ChartMainService {
     return inactiveCharts;
   }
 
+  // async findOne(id: string) {
+  //   const chart = await this.prisma.chartTable.findUnique({
+  //     where: { id },
+  //     include: {
+  //       heatmap: { include: { widgets: true } },
+  //       pi: { include: { widgets: true } },
+  //       sheet: true,
+  //     },
+  //   });
+
+  //   if (!chart) return null;
+
+  //   const { heatmap, pi, sheet, ...main } = chart;
+
+  //   return {
+  //     ...main,
+  //     ...(heatmap ?? {}),
+  //     ...(pi ?? {}),
+  //     ...(sheet ?? {}),
+  //   };
+  // }
+
   async findOne(id: string) {
+    if (!id) {
+      throw new BadRequestException('Chart ID is required');
+    }
+
     const chart = await this.prisma.chartTable.findUnique({
       where: { id },
       include: {
-        heatmap: { include: { widgets: true } },
+        barChart: { include: { widgets: true } },
+        horizontalBarChart: { include: { widgets: true } },
         pi: { include: { widgets: true } },
+        heatmap: { include: { widgets: true } },
+        areaChart: { include: { widgets: true } },
+        multiAxisChart: { include: { widgets: true } },
+        columnChart: { include: { widgets: true } },
+        stackedBarChart: { include: { widgets: true } },
+        doughnutChart: { include: { widgets: true } },
+        paretoChart: { include: { widgets: true } },
+        histogramChart: { include: { widgets: true } },
+        scatterChart: { include: { widgets: true } },
+        solidGaugeChart: { include: { widgets: true } },
+        funnelChart: { include: { widgets: true } },
+        waterFallChart: { include: { widgets: true } },
+        candlestickChart: { include: { widgets: true } },
+        radarChart: { include: { widgets: true } },
         sheet: true,
       },
     });
 
-    if (!chart) return null;
+    if (!chart) {
+      throw new NotFoundException('Chart not found');
+    }
 
-    const { heatmap, pi, sheet, ...main } = chart;
+    const {
+      barChart,
+      horizontalBarChart,
+      pi,
+      heatmap,
+      areaChart,
+      multiAxisChart,
+      columnChart,
+      stackedBarChart,
+      doughnutChart,
+      paretoChart,
+      histogramChart,
+      scatterChart,
+      solidGaugeChart,
+      funnelChart,
+      waterFallChart,
+      candlestickChart,
+      radarChart,
+      sheet,
+      ...main
+    } = chart;
 
     return {
       ...main,
-      ...(heatmap ?? {}),
+      ...(barChart ?? {}),
+      ...(horizontalBarChart ?? {}),
       ...(pi ?? {}),
+      ...(heatmap ?? {}),
+      ...(areaChart ?? {}),
+      ...(multiAxisChart ?? {}),
+      ...(columnChart ?? {}),
+      ...(stackedBarChart ?? {}),
+      ...(doughnutChart ?? {}),
+      ...(paretoChart ?? {}),
+      ...(histogramChart ?? {}),
+      ...(scatterChart ?? {}),
+      ...(solidGaugeChart ?? {}),
+      ...(funnelChart ?? {}),
+      ...(waterFallChart ?? {}),
+      ...(candlestickChart ?? {}),
+      ...(radarChart ?? {}),
       ...(sheet ?? {}),
     };
   }
+
 
   async getSpecificChart(type: ChartName, id: string) {
     let result;
@@ -1194,7 +1270,7 @@ export class ChartMainService {
         parentId,
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: 'asc',
       },
       include: {
         barChart: {
@@ -1248,6 +1324,9 @@ export class ChartMainService {
         radarChart: {
           include: { widgets: true },
         },
+        splineChart: {
+          include: { widgets: true },
+        },
       },
     });
 
@@ -1283,6 +1362,7 @@ export class ChartMainService {
         data: {
           value: history?.xAxis,
           chartId: id,
+          createdAt: updatedata.datasettime || new Date()
         }
       })
     }
@@ -1379,13 +1459,18 @@ export class ChartMainService {
   }
 
 
-  async showHistory(chartId: string) {
+  async showHistory(projectId: string) {
     const history = await this.prisma.chartHistory.findMany({
       where: {
-        chartId: chartId
+        chart: {
+          projectId: projectId
+        }
       },
       orderBy: {
-        createdAt: 'asc'
+        createdAt: 'desc'
+      },
+      include: {
+        chart: true
       }
     });
     return history;
@@ -1431,6 +1516,7 @@ export class ChartMainService {
           stackedBarChart: { include: { widgets: true } },
           solidGaugeChart: { include: { widgets: true } },
           scatterChart: { include: { widgets: true } },
+          splineChart: { include: { widgets: true } },
         },
       });
 
@@ -1469,6 +1555,7 @@ export class ChartMainService {
         originalChart.stackedBarChart,
         originalChart.solidGaugeChart,
         originalChart.scatterChart,
+        originalChart.splineChart,
       ].find(Boolean);
 
       if (chartMap) {
@@ -1549,6 +1636,7 @@ export class ChartMainService {
           stackedBarChart: { include: { widgets: true } },
           solidGaugeChart: { include: { widgets: true } },
           scatterChart: { include: { widgets: true } },
+          splineChart: { include: { widgets: true } },
         },
       });
 
@@ -1700,6 +1788,9 @@ export class ChartMainService {
         radarChart: {
           include: { widgets: true },
         },
+        splineChart: {
+          include: { widgets: true },
+        },
       },
     });
   }
@@ -1783,7 +1874,7 @@ export class ChartMainService {
         },
       },
       orderBy: {
-        createdAt: 'asc',
+        createdAt: 'desc',
       },
       include: {
         barChart: { include: { widgets: true } },
@@ -1803,6 +1894,7 @@ export class ChartMainService {
         waterFallChart: { include: { widgets: true } },
         candlestickChart: { include: { widgets: true } },
         radarChart: { include: { widgets: true } },
+        splineChart: { include: { widgets: true } },
       },
     });
 
@@ -1825,6 +1917,77 @@ export class ChartMainService {
 
 
 
+
+  async findAllByProject(projectId: string) {
+    if (!projectId) {
+      throw new BadRequestException('Project ID is required');
+    }
+
+    return this.prisma.chartTable.findMany({
+      where: {
+        projectId,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+      include: {
+        barChart: {
+          include: { widgets: true },
+        },
+        horizontalBarChart: {
+          include: { widgets: true },
+        },
+        pi: {
+          include: { widgets: true },
+        },
+        heatmap: {
+          include: { widgets: true },
+        },
+        areaChart: {
+          include: { widgets: true },
+        },
+        multiAxisChart: {
+          include: { widgets: true },
+        },
+        columnChart: {
+          include: { widgets: true },
+        },
+        stackedBarChart: {
+          include: { widgets: true },
+        },
+        doughnutChart: {
+          include: { widgets: true },
+        },
+        paretoChart: {
+          include: { widgets: true },
+        },
+        histogramChart: {
+          include: { widgets: true },
+        },
+        scatterChart: {
+          include: { widgets: true },
+        },
+        solidGaugeChart: {
+          include: { widgets: true },
+        },
+        funnelChart: {
+          include: { widgets: true },
+        },
+        waterFallChart: {
+          include: { widgets: true },
+        },
+        candlestickChart: {
+          include: { widgets: true },
+        },
+        radarChart: {
+          include: { widgets: true },
+        },
+        splineChart: {
+          include: { widgets: true },
+        },
+      },
+    });
+  }
 
   async safeDeleteChart(id: string) {
     return this.prisma.$transaction(async (tx) => {
@@ -1884,6 +2047,7 @@ export class ChartMainService {
       await tx.waterFallChart.deleteMany({ where: { chartTableId: id } });
       await tx.candlestickChart.deleteMany({ where: { chartTableId: id } });
       await tx.radarChart.deleteMany({ where: { chartTableId: id } });
+      await tx.splineChart.deleteMany({ where: { ChartTableId: id } });
 
       // 5️⃣ Finally delete main chart
       return tx.chartTable.delete({

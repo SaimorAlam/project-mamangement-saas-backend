@@ -1,7 +1,9 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -13,430 +15,422 @@ import {
   paginate,
   PaginatedResult,
 } from '../../utils/pagination/pagination.utils';
-import { Submitted, SubmittedStatus } from '../../../../generated/prisma';
+import { Prisma, Submitted, SubmittedStatus } from '../../../../generated/prisma';
 import { NotificationService } from 'src/modules/notification/service/notification.service';
 import { NotificationType } from 'src/modules/notification/dto/create-notification.dto';
 import { length } from 'class-validator';
+import { ChartMainService } from 'src/modules/chart/service/chart.main.service';
 
-interface WhereClause {
-  employeeId?: string;
-  project?: {
-    name: {
-      contains: string;
-      mode: 'insensitive';
-    };
-  };
-  status?: SubmittedStatus;
-  createdAt?: {
-    gte: Date;
-    lte: Date;
-  };
-}
 
 @Injectable()
 export class SubmittedService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
-  ) {}
+    private readonly ChartMainService: ChartMainService
+  ) { }
 
   async create(createSubmittedDto: CreateSubmittedDto, employeeId: string) {
-    const { projectId, sheetId, submiteCells } = createSubmittedDto;
-
-    const employee = await this.prisma.employee.findUnique({
-      where: { id: employeeId },
-    });
-    if (!employee)
-      throw new NotFoundException(`Employee with ID ${employeeId} not found`);
+    const { projectId, information, submission, elements } = createSubmittedDto;
 
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
-      include: {
-        manager: true,
+      select: {
+        id: true,
+        name: true,
+        manager: {
+          select: {
+            userId: true
+          }
+        },
+        projectEmployees: {
+          where: { employeeId: employeeId }
+        }
       },
     });
-    if (!project)
+
+    if (!project) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
-
-    const sheet = await this.prisma.sheet.findUnique({
-      where: { id: sheetId },
-    });
-    if (!sheet)
-      throw new NotFoundException(`Sheet with ID ${sheetId} not found`);
-
-    if (submiteCells?.length > 0) {
-      const foundCells = await this.prisma.submiteCell.findMany({
-        where: { id: { in: submiteCells } },
-      });
-
-      if (foundCells.length !== submiteCells.length) {
-        const notFoundIds = submiteCells.filter(
-          (id) => !foundCells.some((cell) => cell.id === id),
-        );
-        throw new NotFoundException(
-          `SubmiteCell with IDs ${notFoundIds.join(', ')} not found`,
-        );
-      }
     }
 
-    const result = await this.prisma.submitted.create({
-      data: { ...createSubmittedDto, employeeId },
-    });
-
-    const projectManager = project.manager;
-    if (!projectManager) {
-      console.log(' No manager assigned to project. Skipping notification.');
-      return result;
-    }
-
-    const permission =
-      await this.prisma.notificationPermissionManager.findUnique({
-        where: { userId: projectManager.id },
-      });
-
-    if (!permission || permission.submittedProject !== true) {
-      console.log(
-        ' Manager notification permission disabled. No notification sent.',
+    if (project.projectEmployees.length === 0) {
+      throw new ForbiddenException(
+        `Access Denied: You are not assigned to project "${project.name}"`
       );
-      return result;
     }
 
-    const sendingList = await this.notificationService.create(
-      {
-        receiverIds: [projectManager.id],
-        projectId,
-        context: `A new submission has been created for project: ${project.name}`,
-        type: NotificationType.PROJECT_SUBMITTED,
+    const chartIds = elements.map(el => el.chartId);
+    const validCharts = await this.prisma.chartTable.findMany({
+      where: {
+        id: { in: chartIds },
+        projectId: projectId,
       },
-      employeeId,
-    );
+      select: { id: true }
+    });
 
-    return result;
+    if (validCharts.length !== chartIds.length) {
+      const foundIds = validCharts.map(c => c.id);
+      const missingIds = chartIds.filter(id => !foundIds.includes(id));
+      throw new BadRequestException(`Charts not found in this project: ${missingIds.join(', ')}`);
+    }
+
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        return await tx.submitted.create({
+          data: {
+            information,
+            submission,
+            projectId,
+            employeeId,
+            status: SubmittedStatus.PENDING,
+            elements: {
+              create: elements.map((el) => ({
+                chartId: el.chartId,
+                xAxis: JSON.parse(el.xAxis),
+                yAxis: el.yAxis ? JSON.parse(el.yAxis) : Prisma.JsonNull,
+                zAxis: el.zAxis ? JSON.parse(el.zAxis) : Prisma.JsonNull,
+
+              })),
+            },
+          },
+          include: { elements: true },
+        });
+      });
+
+      this.handleNotifications(project, employeeId).catch(() => null);
+
+      return result;
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to create submission');
+    }
   }
 
+
+  private async handleNotifications(project: any, senderId: string) {
+    const managerUserId = project.manager?.userId || project.manager?.user?.id;
+    if (!managerUserId) {
+      return;
+    }
+    try {
+      const permission = await this.prisma.notificationPermissionManager.findUnique({
+        where: { userId: managerUserId },
+      });
+
+      const isEnabled = permission ? permission.submittedProject : true;
+
+      if (isEnabled) {
+        await this.notificationService.create(
+          {
+            receiverIds: [managerUserId],
+            projectId: project.id,
+            context: `New submission for project: ${project.name}. Approval required to update charts.`,
+            type: NotificationType.SHEET_UPDATE_REQUEST,
+          },
+          senderId
+        );
+
+      } else {
+
+      }
+    } catch (error) {
+
+      console.error(' Error in handleNotifications:', error.message);
+    }
+  }
+
+  // private async handleNotifications(project: any, senderId: string) {
+  //   const managerUserId = project.manager?.user?.id || project.manager?.userId;
+
+  //   if (!managerUserId) return;
+  //   const permission = await this.prisma.notificationPermissionManager.findUnique({
+  //     where: { userId: managerUserId },
+  //   });
+  //   if (permission?.submittedProject) {
+  //     await this.notificationService.create(
+  //       {
+  //         receiverIds: [managerUserId],
+  //         projectId: project.id,
+  //         context: `New submission for project: ${project.name}. Approval required to update charts.`,
+  //         type: NotificationType.SHEET_UPDATE_REQUEST,
+  //       },
+  //       senderId
+  //     );
+  //   }
+  // }
+
+  // async findAll(
+  //   query: GetAllSubmissionsDto,
+  //   employeeId: string,
+  // ): Promise<PaginatedResult<Submitted>> {
+  //   const { page = 1, limit = 10, search, status, startDate, endDate } = query;
+
+  //   const where: WhereClause = { employeeId };
+
+  //   if (search) {
+  //     where.project = {
+  //       name: {
+  //         contains: search,
+  //         mode: 'insensitive',
+  //       },
+  //     };
+  //   }
+
+  //   if (status) {
+  //     where.status = status;
+  //   }
+
+  //   if (startDate && endDate) {
+  //     where.createdAt = {
+  //       gte: new Date(startDate),
+  //       lte: new Date(endDate),
+  //     };
+  //   }
+
+  //   return paginate<Submitted>(
+  //     this.prisma,
+  //     'submitted',
+  //     { where },
+  //     { page, limit },
+  //   );
+  // }
   async findAll(
     query: GetAllSubmissionsDto,
-    employeeId: string,
-  ): Promise<PaginatedResult<Submitted>> {
+    authUserId: string,
+    userRole: string,
+  ): Promise<PaginatedResult<any>> {
     const { page = 1, limit = 10, search, status, startDate, endDate } = query;
 
-    const where: WhereClause = { employeeId };
+    const where: any = {};
+
+    if (userRole !== 'CLIENT') {
+      where.project = {
+        OR: [
+          { manager: { userId: authUserId } },
+          { projectEmployees: { some: { employee: { userId: authUserId } } } },
+          { projectViewers: { some: { viewer: { userId: authUserId } } } },
+        ],
+      };
+    }
 
     if (search) {
-      where.project = {
-        name: {
-          contains: search,
-          mode: 'insensitive',
-        },
-      };
+      where.project = { ...where.project, name: { contains: search, mode: 'insensitive' } };
     }
-
-    if (status) {
-      where.status = status;
-    }
-
+    if (status) where.status = status;
     if (startDate && endDate) {
-      where.createdAt = {
-        gte: new Date(startDate),
-        lte: new Date(endDate),
-      };
+      where.createdAt = { gte: new Date(startDate), lte: new Date(endDate) };
     }
 
-    return paginate<Submitted>(
+
+    const selectClause = {
+      id: true,
+      information: true,
+      submission: true,
+      status: true,
+      createdAt: true,
+      project: {
+        select: {
+          id: true,
+          name: true,
+          status: true,
+        }
+      },
+      employee: {
+        select: {
+          id: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              profileImage: true
+            }
+          }
+        }
+      },
+      elements: true
+    };
+
+    return paginate<any>(
       this.prisma,
       'submitted',
-      { where },
+      {
+        where,
+        select: selectClause
+      },
       { page, limit },
     );
   }
-
-  async findOne(id: string, employeeId: string) {
-    const submitted = await this.prisma.submitted.findUnique({
-      where: { id },
-      include: {
-        employee: true,
-        project: true,
+  // async findOne(id: string, employeeId: string) {
+  //   const submitted = await this.prisma.submitted.findUnique({
+  //     where: { id },
+  //     include: {
+  //       employee: true,
+  //       project: true,
+  //     },
+  //   });
+  //   if (!submitted) {
+  //     throw new NotFoundException(`Submission with ID ${id} not found`);
+  //   }
+  //   if (submitted.employeeId !== employeeId) {
+  //     throw new UnauthorizedException(
+  //       'You are not authorized to view this submission',
+  //     );
+  //   }
+  //   return submitted;
+  // }
+  async findOne(id: string, authUserId: string, userRole: string) {
+    const submitted = await this.prisma.submitted.findFirst({
+      where: {
+        id,
+        ...(userRole !== 'CLIENT' && {
+          project: {
+            OR: [
+              { manager: { userId: authUserId } },
+              { projectEmployees: { some: { employee: { userId: authUserId } } } },
+              { projectViewers: { some: { viewer: { userId: authUserId } } } },
+            ],
+          },
+        }),
+      },
+      select: {
+        id: true,
+        information: true,
+        submission: true,
+        status: true,
+        createdAt: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        employee: {
+          select: {
+            user: {
+              select: {
+                name: true,
+                profileImage: true,
+              },
+            },
+          },
+        },
+        elements: true,
       },
     });
+
     if (!submitted) {
-      throw new NotFoundException(`Submission with ID ${id} not found`);
+      throw new NotFoundException('Submission not found or access denied');
     }
-    if (submitted.employeeId !== employeeId) {
-      throw new UnauthorizedException(
-        'You are not authorized to view this submission',
-      );
-    }
+
     return submitted;
   }
-
-  // async updateStatus(
-  //   id: string,
-  //   updateSubmittedStatusDto: UpdateSubmittedStatusDto,
-  // ) {
-  //   const { status } = updateSubmittedStatusDto;
-
-  //   return this.prisma.$transaction(async (prisma) => {
-  //     const submitted = await prisma.submitted.findUnique({ where: { id } });
-  //     if (!submitted) {
-  //       throw new NotFoundException(`Submission with ID ${id} not found`);
-  //     }
-
-  //     const updatedSubmission = await prisma.submitted.update({
-  //       where: { id },
-  //       data: { status },
-  //     });
-
-  //     if (status === SubmittedStatus.REJECTED) {
-  //       const existingReturn = await prisma.submissionReturn.findUnique({
-  //         where: { submittedId: id },
-  //       });
-
-  //       if (!existingReturn) {
-  //         await prisma.submissionReturn.create({
-  //           data: {
-  //             submittedId: id,
-  //           },
-  //         });
-  //       }
-  //     }
-
-  //     return updatedSubmission;
-  //   });
-  // }
-
-  //  async updateStatus(
-  //   id: string,
-  //   updateSubmittedStatusDto: UpdateSubmittedStatusDto,
-  //   managerId: string,
-  // ) {
-  //   const { status } = updateSubmittedStatusDto;
-
-  //   return this.prisma.$transaction(async (prisma) => {
-
-  //     const submitted = await prisma.submitted.findUnique({
-  //       where: { id },
-  //       include: {
-  //         employee: { select: { id: true, userId: true } },
-  //         project: { select: { id: true, name: true } },
-  //       },
-  //     });
-
-  //     if (!submitted) {
-  //       throw new NotFoundException(`Submission with id ${id} not found.`);
-  //     }
-
-  //     if (!submitted.employee) {
-  //       throw new BadRequestException('Submission has no employee assigned.');
-  //     }
-
-  //     const { project, employee } = submitted;
-
-  //     const updatedSubmission = await prisma.submitted.update({
-  //       where: { id },
-  //       data: { status },
-  //     });
-
-  //     if (status === SubmittedStatus.REJECTED) {
-  //       await prisma.submissionReturn.upsert({
-  //         where: { submittedId: id },
-  //         update: {},
-  //         create: { submittedId: id },
-  //       });
-  //     }
-
-  //     if (status === SubmittedStatus.APPROVED) {
-  //         const length = submitted.submiteCells.length;
-  //         if (length === 0) {
-  //           throw new ConflictException('Cannot approve submission with no submitted cells.');
-  //         }else {
-  //            for (let i = 0; i < length; i++) {
-  //              const submiteCell = await prisma.submiteCell.findFirst({
-  //                 where:{id: submitted.submiteCells[i]}
-  //               })
-
-  //               if(!submiteCell){
-  //                 throw new NotFoundException(`SubmiteCell with ID ${submitted.submiteCells[i]} not found`);
-  //               }
-  //               await prisma.cell.update({
-  //                 where: {  },
-  //                 data: { value: submiteCell.value },
-  //               });
-
-  //         }
-  //     }
-  //   }
-
-  //     const permission = await prisma.notificationPermissionEmployee.findUnique({
-  //       where: { userId: employee.userId! },
-  //       select: { returnProject: true },
-  //     });
-
-  //     if (!permission?.returnProject) {
-  //       return { updatedSubmission };
-  //     }
-
-  //     const message = (() => {
-  //       switch (status) {
-  //         case SubmittedStatus.APPROVED:
-  //           return `Your submission for project ${project.name} has been APPROVED.`;
-  //         case SubmittedStatus.REJECTED:
-  //           return `Your submission for project ${project.name} has been REJECTED.`;
-  //         default:
-  //           return `Submission status updated to ${status} for project ${project.name}.`;
-  //       }
-  //     })();
-
-  //     await this.notificationService.create(
-  //       {
-  //         receiverIds: [employee.userId!],
-  //         projectId: project.id,
-  //         context: message,
-  //         type: NotificationType.SUBMISSION_UPDATED_STATUS,
-  //       },
-  //       managerId,
-  //     );
-
-  //     return {
-  //       message: 'Sheet update request sent successfully',
-  //       notifications: updatedSubmission,
-  //       // updatedSubmission
-  //     };
-  //   });
-  // }
 
   async updateStatus(
     id: string,
     updateSubmittedStatusDto: UpdateSubmittedStatusDto,
-    managerId: string,
+    authUserId: string,
   ) {
     const { status } = updateSubmittedStatusDto;
 
-    return this.prisma.$transaction(async (prisma) => {
-      const submitted = await prisma.submitted.findUnique({
-        where: { id },
+    const result = await this.prisma.$transaction(async (tx) => {
+      const submitted = await tx.submitted.findFirst({
+        where: {
+          id,
+          project: {
+            OR: [
+              { manager: { userId: authUserId } },
+              { program: { managerId: authUserId } },
+              { program: { manager: { userId: authUserId } } }
+            ]
+          },
+        },
         include: {
+          elements: true,
           employee: { select: { id: true, userId: true } },
           project: { select: { id: true, name: true } },
         },
       });
 
       if (!submitted) {
-        throw new NotFoundException(`Submission with id ${id} not found.`);
+        throw new UnauthorizedException(`Access denied. You are not authorized.`);
       }
 
       if (!submitted.employee) {
         throw new BadRequestException('Submission has no employee assigned.');
       }
 
-      const { project, employee } = submitted;
+      const { project, employee, elements } = submitted;
 
-      const updatedSubmission = await prisma.submitted.update({
+      const updatedSubmission = await tx.submitted.update({
         where: { id },
         data: { status },
       });
 
-      /* ================= REJECTED ================= */
+      if (status === SubmittedStatus.APPROVED) {
+
+        await this.ChartMainService.bulkValueChangeCalculations({
+          charts: elements.map(el => ({
+            id: el.chartId,
+            xAxis: JSON.stringify(el.xAxis),
+            yAxis: el.yAxis ? JSON.stringify(el.yAxis) : undefined,
+            zAxis: el.zAxis ? JSON.stringify(el.zAxis) : undefined,
+          }))
+        });
+        // for (const element of elements) {
+        //   await tx.chartTable.update({
+        //     where: { id: element.chartId },
+        //     data: {
+        //       xAxis: (element.xAxis as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+        //       yAxis: (element.yAxis as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+        //       zAxis: (element.zAxis as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+        //     },
+        //   });
+        // }
+
+
+
+      }
+
       if (status === SubmittedStatus.REJECTED) {
-        await prisma.submissionReturn.upsert({
+        await tx.submissionReturn.upsert({
           where: { submittedId: id },
-          update: {},
+          update: { returnedAt: new Date() },
           create: { submittedId: id },
         });
       }
 
-      /* ================= APPROVED ================= */
-      if (status === SubmittedStatus.APPROVED) {
-        const length = submitted.submiteCells.length;
 
-        if (length === 0) {
-          throw new ConflictException(
-            'Cannot approve submission with no submitted cells.',
-          );
-        }
+      const permission = await tx.notificationPermissionEmployee.findUnique({
+        where: { userId: employee.userId! },
+        select: { returnProject: true },
+      });
+      return { updatedSubmission, employee, project, permission };
+    });
 
-        for (let i = 0; i < length; i++) {
-          const submiteCell = await prisma.submiteCell.findFirst({
-            where: { id: submitted.submiteCells[i] },
-          });
 
-          if (!submiteCell) {
-            throw new NotFoundException(
-              `SubmiteCell with ID ${submitted.submiteCells[i]} not found`,
-            );
-          }
+    const { updatedSubmission, employee, project, permission } = result;
 
-          // ✅ UPDATE CELL USING COMPOSITE UNIQUE KEY
-          await prisma.cell.update({
-            where: {
-              sheetId_row_col: {
-                sheetId: submitted.sheetId,
-                row: submiteCell.row,
-                col: submiteCell.col,
-              },
-            },
-            data: {
-              value: submiteCell.value,
-            },
-          });
-          await prisma.cell.upsert({
-            where: {
-              sheetId_row_col: {
-                sheetId: submitted.sheetId,
-                row: submiteCell.row,
-                col: submiteCell.col,
-              },
-            },
-            update: {
-              value: submiteCell.value,
-            },
-            create: {
-              sheetId: submitted.sheetId,
-              row: submiteCell.row,
-              col: submiteCell.col,
-              value: submiteCell.value,
-            },
-          });
-        }
-      }
+    if (permission?.returnProject) {
+      const message = status === SubmittedStatus.APPROVED
+        ? `Your submission for project ${project.name} has been APPROVED.`
+        : `Your submission for project ${project.name} has been REJECTED.`;
 
-      /* ================= NOTIFICATION PERMISSION ================= */
-      const permission = await prisma.notificationPermissionEmployee.findUnique(
-        {
-          where: { userId: employee.userId! },
-          select: { returnProject: true },
-        },
-      );
 
-      if (!permission?.returnProject) {
-        return { updatedSubmission };
-      }
-
-      const message = (() => {
-        switch (status) {
-          case SubmittedStatus.APPROVED:
-            return `Your submission for project ${project.name} has been APPROVED.`;
-          case SubmittedStatus.REJECTED:
-            return `Your submission for project ${project.name} has been REJECTED.`;
-          default:
-            return `Submission status updated to ${status} for project ${project.name}.`;
-        }
-      })();
-
-      await this.notificationService.create(
+      this.notificationService.create(
         {
           receiverIds: [employee.userId!],
           projectId: project.id,
           context: message,
           type: NotificationType.SUBMISSION_UPDATED_STATUS,
         },
-        managerId,
-      );
+        authUserId,
+      ).catch(err => console.error('Real-time notification failed:', err));
+    }
 
-      return {
-        message: 'Sheet update request sent successfully',
-        notifications: updatedSubmission,
-      };
-    });
+    return {
+      success: true,
+      message: `Submission ${status.toLowerCase()} successfully`,
+      data: updatedSubmission,
+    };
   }
 
   async delete(id: string, employeeId: string) {
@@ -453,5 +447,45 @@ export class SubmittedService {
       where: { id },
     });
     return { message: 'Submission deleted successfully' };
+  }
+
+  async getMyReturnedSubmissions(employeeId: string) {
+    return await this.prisma.submitted.findMany({
+      where: {
+        employeeId: employeeId,
+        status: 'REJECTED',
+      },
+      select: {
+        id: true,
+        information: true,
+        submission: true,
+        status: true,
+        updatedAt: true,
+        project: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        submissionReturn: {
+          select: {
+            id: true,
+            returnedAt: true,
+          }
+        },
+        elements: {
+          select: {
+            id: true,
+            chartId: true,
+            xAxis: true,
+            yAxis: true,
+            zAxis: true
+          }
+        }
+      },
+      orderBy: {
+        updatedAt: 'desc'
+      }
+    });
   }
 }

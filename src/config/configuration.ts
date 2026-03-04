@@ -20,6 +20,7 @@ export default () => ({
   reset_pass_ui_link: process.env.RESET_PASS_UI_LINK,
   client_url: process.env.ClIENT_URL,
   loginUrl: process.env.LOGIN_URL,
+  server_url: process.env.SERVER_URL,
 
   //Mailer config (for nodemailer)
   mail_host: process.env.MAIL_HOST,
@@ -63,5 +64,5 @@ export default () => ({
   },
 
 
-  
+
 });

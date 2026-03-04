@@ -24,6 +24,8 @@ import { InfrastructureModule } from './modules/infrastructure/infrastructure.mo
 import { ManagerModule } from './modules/manager/manager.module';
 import { FavoriteModule } from './modules/favouriteProject/favourite.module';
 import { TemplateModule } from './modules/template/template.module';
+import { FSModule } from './modules/feedbackAndSupport/FS.module';
+
 
 @Module({
   imports: [
@@ -78,6 +80,7 @@ import { TemplateModule } from './modules/template/template.module';
     InfrastructureModule,
     FavoriteModule,
     TemplateModule,
+    FSModule
   ],
   controllers: [AppController],
   providers: [AppService, ConfigService, SeedService],

@@ -32,7 +32,7 @@ model Program {
   id                 String   @id @default(uuid())
   programName        String
   datetime           String   
-  programDescription String
+  programDescription String?
   priority           Priority @default(MEDIUM)
   deadline           String?  
   progress           Int?

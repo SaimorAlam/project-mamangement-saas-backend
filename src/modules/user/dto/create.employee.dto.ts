@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger'; // Use OmitType
 import {
     IsArray,
     IsBoolean,
@@ -9,14 +9,14 @@ import {
 } from 'class-validator';
 import { UserHelperDto } from './user.dto';
 
-
 export enum RestrictedRole {
   VIEWER = 'VIEWER',
   EMPLOYEE = 'EMPLOYEE',
   MANAGER = 'MANAGER',
 }
 
-export class CreateStaffEmployeeDto extends UserHelperDto {
+// We wrap UserHelperDto with OmitType to remove the 'password' field
+export class CreateStaffEmployeeDto extends OmitType(UserHelperDto, ['password'] as const) {
 
   @ApiPropertyOptional({
     type: [String],

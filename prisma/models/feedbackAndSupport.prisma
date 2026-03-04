@@ -1,0 +1,19 @@
+model Feedback {
+  id        String   @id @default(uuid())
+  message   String
+  file      String[]
+  createdAt DateTime @default(now())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model ContactSupport {
+  id          String   @id @default(uuid())
+  name        String
+  phoneNumber String
+  message     String
+  file        String[]
+  createdAt   DateTime @default(now())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}

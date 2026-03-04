@@ -253,16 +253,6 @@ export class ManagerService {
       },
     });
 
-    console.log('after find with id: ', manager);
-    manager = await this.prisma.manager.findUnique({
-      //where: { userId: id },
-      where: {
-        userId: id,
-      },
-      include: { user: true },
-    });
-    console.log('after find with userId: ', manager);
-
     if (!manager) {
       throw new NotFoundException(`Manager with ID "${id}" not found`);
     }

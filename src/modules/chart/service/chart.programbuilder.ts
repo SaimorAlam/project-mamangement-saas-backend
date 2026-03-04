@@ -13,7 +13,7 @@ export class ChartProgramBuilderService {
 
     async create(createChartBuildDto: CreateChartBuildDto) {
         let subChat = {};
-        const { title, status, category, programid, projectnumber, valueDiteacts,   } = createChartBuildDto;
+        const { title, status, category, programid, projectnumber, valueDiteacts, } = createChartBuildDto;
 
         const result = await this.prisma.$transaction(async (txPrisma) => {
 
@@ -29,8 +29,8 @@ export class ChartProgramBuilderService {
                             projectId: v.projectId,
                             rowname: v.rowname,
                             charttableId: v.charttableId
-                            
-                            
+
+
                         })),
                     },
                 },
@@ -40,8 +40,7 @@ export class ChartProgramBuilderService {
                 case ChartName.BAR: {
                     const {
                         numberOfDataset,
-                        firstFiledDataset,
-                        lastFiledDAtaset,
+                        firstFieldDataset, lastFieldDataset,
                         widgets,
                     } = createChartBuildDto;
 
@@ -49,8 +48,8 @@ export class ChartProgramBuilderService {
                         data: {
                             ChartTableId: mainChart.id,
                             numberOfDataset: numberOfDataset!,
-                            firstFiledDataset: firstFiledDataset!,
-                            lastFiledDAtaset: lastFiledDAtaset!,
+                            firstFiledDataset: firstFieldDataset!,
+                            lastFiledDAtaset: lastFieldDataset!,
 
                             widgets: widgets
                                 ? {
@@ -68,8 +67,7 @@ export class ChartProgramBuilderService {
                 case ChartName.HORIZONTAL_BAR: {
                     const {
                         numberOfDataset,
-                        firstFieldDataset,
-                        lastFieldDataset,
+                        firstFieldDataset, lastFieldDataset,
                         widgets,
                     } = createChartBuildDto;
 
@@ -94,8 +92,7 @@ export class ChartProgramBuilderService {
                     break;
                 }
                 case ChartName.PIE: {
-                    const { numberOfDataset, widgets, firstFieldDataset,
-                        lastFieldDataset, } = createChartBuildDto;
+                    const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartBuildDto;
                     subChat = await txPrisma.piprogrambuilder.create({
                         data: {
                             chartTableId: mainChart.id,
@@ -358,14 +355,14 @@ export class ChartProgramBuilderService {
                     break;
                 }
                 case ChartName.STACK_BAR_HORIZONTAL: {
-                    const { numberOfDataset, widgets, firstFiledDataset, lastFiledDAtaset, } = createChartBuildDto;
+                    const { numberOfDataset, widgets, firstFieldDataset, lastFieldDataset, } = createChartBuildDto;
 
                     subChat = await txPrisma.stackedBarChartprogrambuilder.create({
                         data: {
                             ChartTableId: mainChart.id,
                             numberOfDataset: numberOfDataset!,
-                            firstFiledDataset: firstFiledDataset!,
-                            lastFiledDAtaset: lastFiledDAtaset!,
+                            firstFiledDataset: firstFieldDataset!,
+                            lastFiledDAtaset: lastFieldDataset!,
                             widgets: widgets
                                 ? {
                                     create: widgets.map((widget) => ({
@@ -475,10 +472,9 @@ export class ChartProgramBuilderService {
                 history: true,
             },
         });
-
         return {
             programId,
-            charts: charts.map(chart => {
+            charts: await Promise.all(charts.map(async chart => {
                 const chartData =
                     chart.barChart ||
                     chart.horizontalBarChart ||
@@ -504,55 +500,79 @@ export class ChartProgramBuilderService {
                     category: chart.category,
                     status: chart.status,
                     chartData,
-                    valueDetection: detectChartValues(
-                        chartData,
-                        chart.valueDiteacts,
+                    valueDetection: await this.detectChartValues(
+                        chart.valueDiteacts
                     ),
                     history: chart.history,
                 };
-            }),
+            })),
         };
     }
-}
 
+    async detectChartValues(
+        valueDiteacts: { rowname: string, charttableId: string }[]
+    ) {
+        if (!Array.isArray(valueDiteacts)) return [];
 
-export function detectChartValues(
-    chartData: any,
-    valueDiteacts: { rowname: string }[],
-) {
-    if (!chartData || !Array.isArray(valueDiteacts)) return [];
+        const results: any[] = [];
 
-    const axisRows: any[][] = [];
-
-    const collect = (axis: any) => {
-        if (Array.isArray(axis)) {
-            axis.forEach(row => {
-                if (Array.isArray(row)) axisRows.push(row);
+        for (const vd of valueDiteacts) {
+            // Find the actual chart table record for the data (labels)
+            console.log('Looking for chart table with ID:', vd.charttableId);
+            const ct = await this.prisma.chartTable.findUnique({
+                where: { id: vd.charttableId }
             });
-        }
-    };
+            console.log(ct)
+            if (!ct) continue;
 
-    // collect all possible axes safely
-    collect(chartData.xAxis);
-    collect(chartData.yAxis);
-    collect(chartData.zAxis);
-
-    const resultMap = new Map<string, any[]>();
-
-    for (const vd of valueDiteacts) {
-        for (const row of axisRows) {
-            if (row.includes(vd.rowname)) {
-                if (!resultMap.has(vd.rowname)) {
-                    resultMap.set(vd.rowname, []);
+            const extractRows = (axis: any): any[][] => {
+                if (!axis) return [];
+                let data = axis;
+                if (typeof data === 'string') {
+                    try { data = JSON.parse(data); } catch (e) { return []; }
                 }
-                resultMap.get(vd.rowname)!.push(row);
+                if (data && typeof data === 'object' && Array.isArray(data.labels)) {
+                    return data.labels;
+                }
+                if (Array.isArray(data)) return data;
+                return [];
+            };
+
+            const allPossibleRows: any[][] = [
+                ...extractRows(ct.xAxis),
+                ...extractRows(ct.yAxis),
+                ...extractRows(ct.zAxis),
+            ];
+
+            for (const row of allPossibleRows) {
+                if (Array.isArray(row) && row.length > 0) {
+                    const label = String(row[0]).trim();
+                    const target = String(vd.rowname).trim();
+
+                    console.log(label, target)
+                    if (label.toLowerCase() === target.toLowerCase()) {
+                        results.push({
+                            rowname: vd.rowname,
+                            matchedRow: row,
+                            charttableId: vd.charttableId,
+                        });
+                        console.log(results)
+                    }
+                }
             }
         }
+
+        const matching: any[][] = [];
+        const seen = new Set<string>();
+
+        for (const res of results) {
+            const rowStr = JSON.stringify(res.matchedRow);
+            if (!seen.has(rowStr)) {
+                matching.push(res.matchedRow);
+                seen.add(rowStr);
+            }
+        }
+
+        return { matching };
     }
-
-    return Array.from(resultMap.entries()).map(([rowname, matches]) => ({
-        rowname,
-        matches,
-    }));
 }
-

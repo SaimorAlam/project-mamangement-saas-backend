@@ -20,11 +20,11 @@ export class MultiAxis_ChartDto {
    
     @IsOptional()
     @IsInt()
-    firstFieldDataset?: number;
+    firstFiledDataset?: number;
 
     @IsOptional()
     @IsInt()
-    lastFieldDataset?: number;
+    lastFiledDAtaset?: number;
     
     @IsOptional()
     @IsArray()

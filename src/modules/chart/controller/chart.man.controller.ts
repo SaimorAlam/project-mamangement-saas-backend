@@ -115,8 +115,8 @@ export class ChartMainController {
 
   @Get('all-chart-history/:projectId')
   @Roles('CLIENT')
-  async getchartHistoty(@Param('projectId') chartId: string) {
-    const data = await this.chartService.showHistory(chartId)
+  async getchartHistoty(@Param('projectId') projectId: string) {
+    const data = await this.chartService.showHistory(projectId)
     return data
   }
 
@@ -185,6 +185,17 @@ export class ChartMainController {
     };
   }
 
+
+
+  @Get('all-charts/:projectId')
+  @ApiOperation({ summary: 'Get all charts by project ID' })
+  async findAllByProject(@Param('projectId') projectId: string) {
+    const result = await this.chartService.findAllByProject(projectId);
+    return {
+      message: 'All charts fetched successfully',
+      data: result,
+    };
+  }
 
 
   @Delete('charttable/:id')

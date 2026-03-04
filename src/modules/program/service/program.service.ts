@@ -121,58 +121,60 @@ async create(createProgramDto: CreateProgramDto, userId: string) {
     }
     return program;
   }
-  async findAllProjectsByProgram(
-    programId: string,
-    query: FindAllProjectsInProgramDto,
-  ): Promise<PaginatedResult<any>> {
-    await this.findOne(programId);
-    const { page, limit, search, priority, startDate, deadline } = query;
-    const where: Prisma.ProjectWhereInput = {
-      programId,
-    };
+  // async findAllProjectsByProgram(
+  //   programId: string,
+  //   query: FindAllProjectsInProgramDto,
+  // ): Promise<PaginatedResult<any>> {
+  //   await this.findOne(programId);
+  //   const { page, limit, search, priority, startDate, deadline } = query;
+  //   const where: Prisma.ProjectWhereInput = {
+  //     programId,
+  //   };
 
-    if (search) {
-      where.OR = [
-        {
-          name: {
-            contains: search,
-            mode: 'insensitive',
-          },
-        },
-        {
-          description: {
-            contains: search,
-            mode: 'insensitive',
-          },
-        },
-      ];
-    }
+  //   if (search) {
+  //     where.OR = [
+  //       {
+  //         name: {
+  //           contains: search,
+  //           mode: 'insensitive',
+  //         },
+  //       },
+  //       {
+  //         description: {
+  //           contains: search,
+  //           mode: 'insensitive',
+  //         },
+  //       },
+  //     ];
+  //   }
 
-    if (priority) {
-      where.priority = priority;
-    }
+  //   if (priority) {
+  //     where.priority = priority;
+  //   }
 
-    if (startDate) {
-      where.startDate = {
-        gte: startDate,
-      };
-    }
+  //   if (startDate) {
+  //     where.startDate = {
+  //       gte: startDate,
+  //     };
+  //   }
 
-    if (deadline) {
-      where.deadline = {
-        lte: deadline,
-      };
-    }
+  //   if (deadline) {
+  //     where.deadline = {
+  //       lte: deadline,
+  //     };
+  //   }
 
-    return paginate(
-      this.prisma,
-      'project',
-      {
-        where,
-      },
-      { page: page ?? 1, limit: limit ?? 10 },
-    );
-  }
+  //   return paginate(
+  //     this.prisma,
+  //     'project',
+  //     {
+  //       where,
+  //     },
+  //     { page: page ?? 1, limit: limit ?? 10 },
+  //   );
+  // }
+
+  
 
   async updateProgramName(programId: string, programName: string) {
     const program = await this.prisma.program.findUnique({

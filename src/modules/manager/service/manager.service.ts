@@ -4,7 +4,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class ManagerService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
 
   /* ---------- Helpers ---------- */
@@ -157,7 +157,7 @@ export class ManagerService {
         managerId,
         isDeleted: false,
         deadline: { lt: new Date() },
-        status:'OVERDUE',
+        status: 'OVERDUE',
       },
     });
 
@@ -373,37 +373,37 @@ export class ManagerService {
     return 'Low';
   }
 
-async getTopOverdueProjects(managerId: string) {
-  const projects = await this.prisma.project.findMany({
-    where: { 
-      managerId,
-      status: "OVERDUE"
-    },
-  });
+  async getTopOverdueProjects(managerId: string) {
+    const projects = await this.prisma.project.findMany({
+      where: {
+        managerId,
+        status: "OVERDUE"
+      },
+    });
 
-  const formatted = projects.map((item) => {
-    const overdueDays = this.calculateOverdueDays(item.deadline as any);
+    const formatted = projects.map((item) => {
+      const overdueDays = this.calculateOverdueDays(item.deadline as any);
+
+      return {
+        id: item.id,
+        name: item.name,
+        status: item.status,
+        overdueDays: overdueDays > 0 ? overdueDays : 0,
+        priority: this.getPriorityLabel(item.priority),
+        deadline: item.deadline,
+      };
+    });
+
+
+    const overdueProjects = formatted
+      .sort((a, b) => b.overdueDays - a.overdueDays);
 
     return {
-      id: item.id,
-      name: item.name,
-      status: item.status,
-      overdueDays: overdueDays > 0 ? overdueDays : 0,
-      priority: this.getPriorityLabel(item.priority),
-      deadline: item.deadline,
+      totalProjects: projects.length,
+      overdueCount: overdueProjects.length,
+      projects: overdueProjects,
     };
-  });
-
-
-  const overdueProjects = formatted
-    .sort((a, b) => b.overdueDays - a.overdueDays);
-
-  return {
-    totalProjects: projects.length, 
-    overdueCount: overdueProjects.length,
-    projects: overdueProjects, 
-  };
-}
+  }
 
 
   async getSubmissionStatus(managerId: string, month: number, year: number) {
@@ -703,15 +703,15 @@ async getTopOverdueProjects(managerId: string) {
       sidebar: {
         programManager: managerUser
           ? {
-              name: managerUser.name,
-              email: managerUser.email,
-              image: managerUser.profileImage,
-            }
+            name: managerUser.name,
+            email: managerUser.email,
+            image: managerUser.profileImage,
+          }
           : {
-              name: 'No Manager Assigned',
-              email: '',
-              image: null,
-            },
+            name: 'No Manager Assigned',
+            email: '',
+            image: null,
+          },
 
         duration: {
           start: program.datetime,
@@ -806,11 +806,11 @@ async getTopOverdueProjects(managerId: string) {
         ...(status && { status }),
         ...(fromDate || toDate
           ? {
-              createdAt: {
-                ...(fromDate && { gte: new Date(fromDate) }),
-                ...(toDate && { lte: new Date(toDate) }),
-              },
-            }
+            createdAt: {
+              ...(fromDate && { gte: new Date(fromDate) }),
+              ...(toDate && { lte: new Date(toDate) }),
+            },
+          }
           : {}),
       },
       include: {
@@ -851,17 +851,17 @@ async getTopOverdueProjects(managerId: string) {
       employee: sub.employee
         ? sub.employee
         : {
+          id: 'unknown',
+          user: {
             id: 'unknown',
-            user: {
-              id: 'unknown',
-              name: 'Unknown Employee',
-              email: null,
-              phoneNumber: null,
-              profileImage: null,
-              role: null,
-              userStatus: null,
-            },
+            name: 'Unknown Employee',
+            email: null,
+            phoneNumber: null,
+            profileImage: null,
+            role: null,
+            userStatus: null,
           },
+        },
     }));
   }
 
@@ -923,8 +923,63 @@ async getTopOverdueProjects(managerId: string) {
     };
   }
 
+  // async getSubmissionActivity(managerId: string) {
+  //   const submissions = await this.prisma.submitted.findMany({
+  //     include: {
+  //       employee: {
+  //         select: {
+  //           id: true,
+  //           user: {
+  //             select: {
+  //               id: true,
+  //               name: true,
+  //               profileImage: true,
+  //             },
+  //           },
+  //         },
+  //       },
+  //     },
+  //   });
+
+  //   const employeeMap = new Map<string, any>();
+
+  //   submissions.forEach((sub) => {
+  //     const empId = sub.employee?.id ?? 'unknown';
+
+  //     if (!employeeMap.has(empId)) {
+  //       const defaultStatusSummary = Object.values(SubmittedStatus).reduce(
+  //         (acc, status) => ({ ...acc, [status]: 0 }),
+  //         {} as Record<string, number>,
+  //       );
+
+  //       employeeMap.set(empId, {
+  //         employee: {
+  //           id: sub.employee?.id ?? empId,
+  //           name: sub.employee?.user?.name ?? 'Unknown',
+  //           profileImage: sub.employee?.user?.profileImage ?? 'default.png',
+  //         },
+  //         totalSubmissions: 0,
+  //         statusSummary: defaultStatusSummary,
+  //       });
+  //     }
+
+  //     const empData = employeeMap.get(empId);
+  //     empData.totalSubmissions += 1;
+
+  //     const status = sub.status as SubmittedStatus;
+  //     empData.statusSummary[status] = (empData.statusSummary[status] ?? 0) + 1;
+  //   });
+
+  //   return Array.from(employeeMap.values());
+  // }
+
   async getSubmissionActivity(managerId: string) {
     const submissions = await this.prisma.submitted.findMany({
+      where: {
+        project: {
+          managerId: managerId,
+        },
+      },
       include: {
         employee: {
           select: {
@@ -934,6 +989,22 @@ async getTopOverdueProjects(managerId: string) {
                 id: true,
                 name: true,
                 profileImage: true,
+              },
+            },
+          },
+        },
+        project: {
+          select: {
+            manager: {
+              select: {
+                id: true,
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    profileImage: true,
+                  },
+                },
               },
             },
           },
@@ -967,7 +1038,9 @@ async getTopOverdueProjects(managerId: string) {
       empData.totalSubmissions += 1;
 
       const status = sub.status as SubmittedStatus;
-      empData.statusSummary[status] = (empData.statusSummary[status] ?? 0) + 1;
+      if (empData.statusSummary.hasOwnProperty(status)) {
+        empData.statusSummary[status] += 1;
+      }
     });
 
     return Array.from(employeeMap.values());

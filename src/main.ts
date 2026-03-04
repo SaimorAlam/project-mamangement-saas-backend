@@ -1,4 +1,8 @@
 import { NestFactory } from '@nestjs/core';
+if (!globalThis.crypto) {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  globalThis.crypto = require('node:crypto');
+}
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';

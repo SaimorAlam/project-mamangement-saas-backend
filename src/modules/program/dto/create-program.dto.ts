@@ -26,8 +26,8 @@ export class CreateProgramDto {
 
   @ApiProperty({ example: 'Detailed description here...' })
   @IsString()
-  @IsNotEmpty()
-  programDescription: string;
+  @IsOptional()
+  programDescription?: string;
 
   // @ApiProperty({ enum: Priority, example: Priority.MEDIUM })
   // @IsEnum(Priority)

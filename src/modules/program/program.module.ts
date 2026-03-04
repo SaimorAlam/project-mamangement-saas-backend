@@ -4,10 +4,11 @@ import { ProgramService } from './service/program.service';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { TagController } from './controller/tag.controller';
 import { TagService } from './service/tag.service';
+import { ProgramProjectService } from './service/programproject.services';
 
 @Module({
   imports: [PrismaModule],
   controllers: [ProgramController,TagController],
-  providers: [ProgramService,TagService],
+  providers: [ProgramService , ProgramProjectService ,TagService],
 })
 export class ProgramModule {}

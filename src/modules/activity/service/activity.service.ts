@@ -103,7 +103,7 @@ export class ActivityService {
         user: {
           id: user.id,
           name: user.name,
-          avatar: user.profileImage || undefined,
+          avatar: user.profileImage || "",
           role: user.role,
         },
       },

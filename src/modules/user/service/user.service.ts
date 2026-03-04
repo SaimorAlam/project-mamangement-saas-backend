@@ -64,58 +64,58 @@ export class UserService {
     }
   }
 
-async findAll(
-  query: { page: number; limit: number } = { page: 1, limit: 10 },
-) {
-  const users = await paginate<any>(
-    this.prisma,
-    'user',
-    {
-      where: {
-        role: {
-          in: ['MANAGER', 'EMPLOYEE', 'VIEWER'],
-        },
-      },
-      include: {
-        manager: {
-          include: {
-            projects: {
-              select: { id: true, name: true },
-            },
+  async findAll(
+    query: { page: number; limit: number } = { page: 1, limit: 10 },
+  ) {
+    const users = await paginate<any>(
+      this.prisma,
+      'user',
+      {
+        where: {
+          role: {
+            in: ['MANAGER', 'EMPLOYEE', 'VIEWER'],
           },
         },
-        employee: {
-          include: {
-            projectEmployees: {
-              include: {
-                project: {
-                  select: { id: true, name: true },
+        include: {
+          manager: {
+            include: {
+              projects: {
+                select: { id: true, name: true },
+              },
+            },
+          },
+          employee: {
+            include: {
+              projectEmployees: {
+                include: {
+                  project: {
+                    select: { id: true, name: true },
+                  },
+                },
+              },
+            },
+          },
+          viewer: {
+            include: {
+              projectViewers: {
+                include: {
+                  project: {
+                    select: { id: true, name: true },
+                  },
                 },
               },
             },
           },
         },
-        viewer: {
-          include: {
-            projectViewers: {
-              include: {
-                project: {
-                  select: { id: true, name: true },
-                },
-              },
-            },
-          },
-        }, 
       },
-    },
-    {
-      page: query.page,
-      limit: query.limit,
-    },
-  );
+      {
+        page: query.page,
+        limit: query.limit,
+      },
+    );
 
-  return users;
-}
+    return users;
+  }
 
 
 
@@ -180,19 +180,62 @@ async findAll(
   async remove(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
+      include: {
+        manager: true,
+        employee: true,
+        viewer: true,
+        supporter: true,
+        superAdmin: true,
+        client: true,
+      },
     });
 
     if (!user) {
       throw new NotFoundException(`User with ID "${id}" not found`);
     }
 
-    await this.prisma.user.delete({
-      where: { id },
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Delete role-specific records first
+      if (user.manager) {
+        await tx.manager.delete({ where: { id: user.manager.id } });
+      }
+      if (user.employee) {
+        await tx.employee.delete({ where: { id: user.employee.id } });
+      }
+      if (user.viewer) {
+        await tx.viewer.delete({ where: { id: user.viewer.id } });
+      }
+      if (user.supporter) {
+        await tx.supporter.delete({ where: { id: user.supporter.id } });
+      }
+      if (user.superAdmin) {
+        await tx.superAdmin.delete({ where: { id: user.superAdmin.id } });
+      }
+      if (user.client) {
+        await tx.client.delete({ where: { id: user.client.id } });
+      }
+
+      // 2. Delete OTP verifications related to the user's email
+      await tx.otpVerification.deleteMany({
+        where: { email: user.email },
+      });
+
+      // 3. Delete files associated with the user
+      await tx.file.deleteMany({
+        where: { userId: id },
+      });
+
+      // 4. Finally delete the user
+      await tx.user.delete({
+        where: { id },
+      });
     });
+
 
     const { password, ...result } = user;
     return result;
   }
+
 
   // async convertEmployeeToManager(employeeId: string, dto: ConvertEmployeeToManagerDto) {
   //   return this.prisma.$transaction(async (prisma) => {
@@ -237,107 +280,128 @@ async findAll(
 
 
 
-async updateUser_assign_Project_and_update_user_status(dto: UpdateUserProjectsDto) {
-  const { userId, removeProjectIds, addProjectIds, status } = dto;
+  async updateUser_assign_Project_and_update_user_status(dto: UpdateUserProjectsDto) {
+    const { userId, removeProjectIds, addProjectIds, status } = dto;
 
 
-  const user = await this.prisma.user.findUnique({
-    where: { id: userId },
-    include: {
-      employee: { include: { projectEmployees: true } },
-      manager: { include: { projects: true } },
-      viewer: { include: { projectViewers: true } },
-    },
-  });
-
-  if (!user) throw new NotFoundException('User not found');
-
-  let relationType: 'employee' | 'manager' | 'viewer' | null = null;
-  let relationId: string | null = null;
-
-  if (user.employee) {
-    relationType = 'employee';
-    relationId = user.employee.id;
-  } else if (user.manager) {
-    relationType = 'manager';
-    relationId = user.manager.id;
-  } else if (user.viewer) {
-    relationType = 'viewer';
-    relationId = user.viewer.id;
-  } else {
-    throw new BadRequestException('User has no role relation');
-  }
-
-  return this.prisma.$transaction(async (tx) => {
-
-    if (removeProjectIds?.length) {
-      if (relationType === 'employee') {
-        await tx.projectEmployee.deleteMany({
-          where: { employeeId: relationId!, projectId: { in: removeProjectIds } },
-        });
-      } else if (relationType === 'manager') {
-        await tx.project.updateMany({
-          where: { managerId: relationId!, id: { in: removeProjectIds } },
-          data: { managerId: null as any },
-        });
-      } else if (relationType === 'viewer') {
-        await tx.projectViewer.deleteMany({
-          where: { viewerId: relationId!, projectId: { in: removeProjectIds } },
-        });
-      }
-    }
-
-
-    if (addProjectIds?.length) {
-      if (relationType === 'employee') {
-        await tx.projectEmployee.createMany({
-          data: addProjectIds.map((projectId) => ({ employeeId: relationId!, projectId })),
-          skipDuplicates: true,
-        });
-      } else if (relationType === 'manager') {
-        await Promise.all(
-          addProjectIds.map((projectId) =>
-            tx.project.update({
-              where: { id: projectId },
-              data: { managerId: relationId! },
-            }),
-          ),
-        );
-      } else if (relationType === 'viewer') {
-        await tx.projectViewer.createMany({
-          data: addProjectIds.map((projectId) => ({ viewerId: relationId!, projectId })),
-          skipDuplicates: true,
-        });
-      }
-    }
-
-
-    if (status) {
-      await tx.user.update({
-        where: { id: userId },
-        data: { userStatus: status },
-      });
-    }
-
-
-    return tx.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
-        employee: { include: { projectEmployees: { include: { project: true } } } },
+        employee: { include: { projectEmployees: true } },
         manager: { include: { projects: true } },
-        viewer: { include: { projectViewers: { include: { project: true } } } },
+        viewer: { include: { projectViewers: true } },
       },
     });
-  });
-}
 
-async removeBulk(ids: string[]) {
+    if (!user) throw new NotFoundException('User not found');
+
+    let relationType: 'employee' | 'manager' | 'viewer' | null = null;
+    let relationId: string | null = null;
+
+    if (user.employee) {
+      relationType = 'employee';
+      relationId = user.employee.id;
+    } else if (user.manager) {
+      relationType = 'manager';
+      relationId = user.manager.id;
+    } else if (user.viewer) {
+      relationType = 'viewer';
+      relationId = user.viewer.id;
+    } else {
+      throw new BadRequestException('User has no role relation');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+
+      if (removeProjectIds?.length) {
+        if (relationType === 'employee') {
+          await tx.projectEmployee.deleteMany({
+            where: { employeeId: relationId!, projectId: { in: removeProjectIds } },
+          });
+        } else if (relationType === 'manager') {
+          await tx.project.updateMany({
+            where: { managerId: relationId!, id: { in: removeProjectIds } },
+            data: { managerId: null as any },
+          });
+        } else if (relationType === 'viewer') {
+          await tx.projectViewer.deleteMany({
+            where: { viewerId: relationId!, projectId: { in: removeProjectIds } },
+          });
+        }
+      }
+
+
+      if (addProjectIds?.length) {
+        if (relationType === 'employee') {
+          await tx.projectEmployee.createMany({
+            data: addProjectIds.map((projectId) => ({ employeeId: relationId!, projectId })),
+            skipDuplicates: true,
+          });
+        } else if (relationType === 'manager') {
+          await Promise.all(
+            addProjectIds.map((projectId) =>
+              tx.project.update({
+                where: { id: projectId },
+                data: { managerId: relationId! },
+              }),
+            ),
+          );
+        } else if (relationType === 'viewer') {
+          await tx.projectViewer.createMany({
+            data: addProjectIds.map((projectId) => ({ viewerId: relationId!, projectId })),
+            skipDuplicates: true,
+          });
+        }
+      }
+
+
+      if (status) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { userStatus: status },
+        });
+      }
+
+
+      return tx.user.findUnique({
+        where: { id: userId },
+        include: {
+          employee: { include: { projectEmployees: { include: { project: true } } } },
+          manager: { include: { projects: true } },
+          viewer: { include: { projectViewers: { include: { project: true } } } },
+        },
+      });
+    });
+  }
+
+  async removeBulk(ids: string[]) {
     if (!ids || ids.length === 0) {
       throw new BadRequestException('No user IDs provided for deletion');
     }
-    
-    return await this.prisma.$transaction(async (tx) => {
 
+    return await this.prisma.$transaction(async (tx) => {
+      // 1. Delete all role-specific records for these users
+      await tx.manager.deleteMany({ where: { userId: { in: ids } } });
+      await tx.employee.deleteMany({ where: { userId: { in: ids } } });
+      await tx.viewer.deleteMany({ where: { userId: { in: ids } } });
+      await tx.supporter.deleteMany({ where: { userId: { in: ids } } });
+      await tx.superAdmin.deleteMany({ where: { userId: { in: ids } } });
+      await tx.client.deleteMany({ where: { userId: { in: ids } } });
+
+      // 2. Fetch user emails to delete linked OTP verifications
+      const users = await tx.user.findMany({
+        where: { id: { in: ids } },
+        select: { email: true }
+      });
+      const emails = users.map(u => u.email);
+      await tx.otpVerification.deleteMany({ where: { email: { in: emails } } });
+
+      // 3. Delete files associated with these users
+      await tx.file.deleteMany({
+        where: { userId: { in: ids } },
+      });
+
+      // 4. Finally delete the users
       const deleted = await tx.user.deleteMany({
         where: {
           id: {
@@ -346,11 +410,13 @@ async removeBulk(ids: string[]) {
         },
       });
 
+
       return {
         message: 'Bulk deletion successful',
         deletedCount: deleted.count,
       };
     });
   }
+
 
 }
