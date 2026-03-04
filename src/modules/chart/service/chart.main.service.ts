@@ -1459,13 +1459,18 @@ export class ChartMainService {
   }
 
 
-  async showHistory(chartId: string) {
+  async showHistory(projectId: string) {
     const history = await this.prisma.chartHistory.findMany({
       where: {
-        chartId: chartId
+        chart: {
+          projectId: projectId
+        }
       },
       orderBy: {
         createdAt: 'desc'
+      },
+      include: {
+        chart: true
       }
     });
     return history;
